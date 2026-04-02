@@ -1,0 +1,66 @@
+/* ─── Desktop: center modal vertically ───────────── */
+@media (min-width: 600px) {
+  .modal-overlay {
+    align-items: center;
+  }
+
+  .modal {
+    border-radius: var(--radius-lg);
+    max-height: 80vh;
+  }
+
+  .action-sheet {
+    border-radius: var(--radius-lg);
+  }
+
+  .fab {
+    bottom: var(--spacing-xl);
+    right: var(--spacing-xl);
+  }
+}
+
+/* ─── Mobile adjustments ─────────────────────────── */
+@media (max-width: 599px) {
+  .main-content {
+    padding: var(--spacing-md);
+  }
+
+  .header {
+    padding: 0 var(--spacing-md);
+  }
+
+  .balance-summary__value {
+    font-size: var(--font-size-xl);
+  }
+
+  .balance-bottom-bar {
+    flex-direction: column;
+  }
+
+  .balance-bottom-bar .btn {
+    width: 100%;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .page-title {
+    font-size: var(--font-size-lg);
+  }
+
+  .category-list-item {
+    flex-wrap: wrap;
+  }
+
+  .category-list-item__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .fab {
+    bottom: var(--spacing-lg);
+    right: var(--spacing-md);
+  }
+}
