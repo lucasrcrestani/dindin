@@ -3,6 +3,7 @@ import { getAllCategories } from '../services/categoryService.js';
 import { parseCSV, executeCSVImport } from '../services/csvImportService.js';
 import { openCSVImportModal } from './csvImportModal.js';
 import { listPastMonths } from '../utils/dateUtils.js';
+import { exportData, importData } from '../services/importExportService.js';
 
 /**
  * Open the settings modal.
@@ -30,10 +31,16 @@ async function openSettingsModal({ onSaved }) {
             <input id="cfg-month" type="month" value="${settings.currentMonth ?? ''}" />
           </div>
           <div class="form-group">
-            <label>Importar dados</label>
-            <button type="button" class="btn btn--secondary" id="btn-cfg-import-csv">Importar CSV</button>
+            <label>Exportar / Importar dados</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+              <button type="button" class="btn btn--secondary" id="btn-cfg-import-csv">Importar CSV</button>
+              <button type="button" class="btn btn--secondary" id="btn-cfg-export-json">Exportar JSON</button>
+              <button type="button" class="btn btn--secondary" id="btn-cfg-import-json">Importar JSON</button>
+            </div>
             <input type="file" id="cfg-csv-file" accept=".csv" style="display:none" />
+            <input type="file" id="cfg-json-file" accept=".json" style="display:none" />
             <p id="cfg-csv-error" class="form-error" style="display:none"></p>
+            <p id="cfg-json-error" class="form-error" style="display:none"></p>
           </div>
           <div class="modal__footer">
             <button type="button" class="btn btn--secondary" id="btn-cfg-cancel">Cancelar</button>
@@ -55,6 +62,50 @@ async function openSettingsModal({ onSaved }) {
   overlay.querySelector('.modal__close').addEventListener('click', close);
   overlay.querySelector('#btn-cfg-cancel').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  // ── JSON export ─────────────────────────────────────────────────────────────
+  overlay.querySelector('#btn-cfg-export-json').addEventListener('click', async () => {
+    const jsonErrorEl = overlay.querySelector('#cfg-json-error');
+    jsonErrorEl.style.display = 'none';
+    try {
+      await exportData();
+    } catch (err) {
+      jsonErrorEl.textContent = `Erro ao exportar: ${err.message}`;
+      jsonErrorEl.style.display = 'block';
+    }
+  });
+
+  // ── JSON import ─────────────────────────────────────────────────────────────
+  overlay.querySelector('#btn-cfg-import-json').addEventListener('click', () => {
+    overlay.querySelector('#cfg-json-file').click();
+  });
+
+  overlay.querySelector('#cfg-json-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const jsonErrorEl = overlay.querySelector('#cfg-json-error');
+    jsonErrorEl.style.display = 'none';
+
+    const confirmed = window.confirm(
+      'Isso substituirá TODOS os dados atuais pelo conteúdo do arquivo. Continuar?'
+    );
+    if (!confirmed) {
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      await importData(file);
+      close();
+      window.dispatchEvent(new CustomEvent('dindin:reload'));
+    } catch (err) {
+      jsonErrorEl.textContent = `Erro ao importar: ${err.message}`;
+      jsonErrorEl.style.display = 'block';
+      e.target.value = '';
+    }
+  });
+  // ───────────────────────────────────────────────────────────────────────────
 
   // ── CSV import ──────────────────────────────────────────────────────────────
   overlay.querySelector('#btn-cfg-import-csv').addEventListener('click', () => {
