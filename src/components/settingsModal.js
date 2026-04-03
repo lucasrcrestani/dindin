@@ -3,7 +3,11 @@ import { getAllCategories } from '../services/categoryService.js';
 import { parseCSV, executeCSVImport } from '../services/csvImportService.js';
 import { openCSVImportModal } from './csvImportModal.js';
 import { listPastMonths } from '../utils/dateUtils.js';
-import { exportData, importData } from '../services/importExportService.js';
+import { exportData, importData, getExportPayload } from '../services/importExportService.js';
+import { signIn, signOut, createFile, syncWithDrive, startAutoSync, stopAutoSync, hasCredentials, clearCredentials } from '../services/driveService.js';
+import { openFilePicker } from '../services/pickerService.js';
+import { openDriveCredentialsModal } from './driveCredentialsModal.js';
+import { renderDriveSyncButton } from './driveSyncButton.js';
 
 /**
  * Open the settings modal.
@@ -42,6 +46,10 @@ async function openSettingsModal({ onSaved }) {
             <p id="cfg-csv-error" class="form-error" style="display:none"></p>
             <p id="cfg-json-error" class="form-error" style="display:none"></p>
           </div>
+          <div class="form-group">
+            <label>Google Drive</label>
+            <div id="drive-section-content"></div>
+          </div>
           <div class="modal__footer">
             <button type="button" class="btn btn--secondary" id="btn-cfg-cancel">Cancelar</button>
             <button type="submit" class="btn btn--primary">Salvar</button>
@@ -62,6 +70,137 @@ async function openSettingsModal({ onSaved }) {
   overlay.querySelector('.modal__close').addEventListener('click', close);
   overlay.querySelector('#btn-cfg-cancel').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  // ── Drive section ────────────────────────────────────────────────────────────
+  async function renderDriveSection() {
+    const section = overlay.querySelector('#drive-section-content');
+    if (!section) return;
+    const s = await getSettings();
+
+    if (!s.driveConnected) {
+      section.innerHTML = `
+        <p class="drive-info__meta" style="margin-bottom:0.5rem">Sincronize seus dados automaticamente com um arquivo JSON no Google Drive.</p>
+        <button type="button" class="btn btn--secondary" id="btn-drive-connect">Conectar ao Google Drive</button>
+        <p id="drive-error" class="form-error" style="display:none"></p>
+      `;
+      section.querySelector('#btn-drive-connect').addEventListener('click', () => handleConnect());
+      return;
+    }
+
+    const lastSync = s.lastSyncedAt
+      ? new Date(s.lastSyncedAt).toLocaleString('pt-BR')
+      : 'Nunca';
+
+    section.innerHTML = `
+      <div class="drive-info">
+        <span class="drive-info__icon" aria-hidden="true">&#x2601;</span>
+        <div>
+          <p class="drive-info__name">${s.driveFileName ?? 'arquivo desconhecido'}</p>
+          <p class="drive-info__meta">Última sincronização: ${lastSync}</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem">
+        <button type="button" class="btn btn--secondary" id="btn-drive-sync-now">Sincronizar agora</button>
+        <button type="button" class="btn btn--secondary" id="btn-drive-change">Trocar arquivo</button>
+        <button type="button" class="btn btn--danger"    id="btn-drive-disconnect">Desconectar</button>
+      </div>
+      <p id="drive-error" class="form-error" style="display:none"></p>
+    `;
+
+    const driveErrEl = () => section.querySelector('#drive-error');
+
+    section.querySelector('#btn-drive-sync-now').addEventListener('click', async () => {
+      driveErrEl().style.display = 'none';
+      try {
+        await syncWithDrive({ silent: false });
+        await renderDriveSection();
+      } catch (err) {
+        driveErrEl().textContent = `Erro ao sincronizar: ${err.message}`;
+        driveErrEl().style.display = 'block';
+      }
+    });
+
+    section.querySelector('#btn-drive-change').addEventListener('click', () => handleConnect({ isChange: true }));
+
+    section.querySelector('#btn-drive-disconnect').addEventListener('click', async () => {
+      await signOut();
+      clearCredentials();
+      stopAutoSync();
+      await renderDriveSyncButton();
+      await renderDriveSection();
+    });
+  }
+
+  async function handleConnect({ isChange = false } = {}) {
+    const section = overlay.querySelector('#drive-section-content');
+
+    if (!hasCredentials()) {
+      try {
+        await openDriveCredentialsModal();
+      } catch {
+        return;
+      }
+    }
+
+    section.innerHTML = `<p class="drive-info__meta">Aguardando autorização do Google…</p>`;
+
+    let token;
+    try {
+      token = await signIn();
+    } catch (err) {
+      await renderDriveSection();
+      const e = overlay.querySelector('#drive-error');
+      if (e) { e.textContent = `Erro ao conectar: ${err.message}`; e.style.display = 'block'; }
+      return;
+    }
+
+    section.innerHTML = `
+      <p class="drive-info__meta" style="margin-bottom:0.5rem">Escolha como usar o Google Drive:</p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button type="button" class="btn btn--secondary" id="btn-drive-pick">Selecionar arquivo existente</button>
+        <button type="button" class="btn btn--secondary" id="btn-drive-new">Criar novo arquivo</button>
+      </div>
+      <p id="drive-error" class="form-error" style="display:none"></p>
+    `;
+
+    section.querySelector('#btn-drive-pick').addEventListener('click', async () => {
+      try {
+        const file = await openFilePicker(token);
+        await finalizeConnection(file.id, file.name);
+      } catch (err) {
+        if (err.message.includes('cancelada')) return;
+        const e = section.querySelector('#drive-error');
+        e.textContent = `Erro: ${err.message}`; e.style.display = 'block';
+      }
+    });
+
+    section.querySelector('#btn-drive-new').addEventListener('click', async () => {
+      const rawName = window.prompt('Nome do arquivo no Google Drive:', 'dindin-dados.json');
+      if (!rawName) return;
+      const fileName = rawName.endsWith('.json') ? rawName : `${rawName}.json`;
+      try {
+        section.innerHTML = `<p class="drive-info__meta">Criando arquivo no Drive…</p>`;
+        const localPayload = await getExportPayload();
+        const driveFile = await createFile(fileName, localPayload);
+        await finalizeConnection(driveFile.id, fileName);
+      } catch (err) {
+        await renderDriveSection();
+        const e = overlay.querySelector('#drive-error');
+        if (e) { e.textContent = `Erro ao criar arquivo: ${err.message}`; e.style.display = 'block'; }
+      }
+    });
+  }
+
+  async function finalizeConnection(fileId, fileName) {
+    const fresh = await getSettings();
+    await saveSettings({ ...fresh, driveConnected: true, driveFileId: fileId, driveFileName: fileName });
+    startAutoSync();
+    await renderDriveSyncButton();
+    await renderDriveSection();
+  }
+
+  // Render drive section on open
+  renderDriveSection();
 
   // ── JSON export ─────────────────────────────────────────────────────────────
   overlay.querySelector('#btn-cfg-export-json').addEventListener('click', async () => {
@@ -180,8 +319,10 @@ async function openSettingsModal({ onSaved }) {
   overlay.querySelector('#form-settings').addEventListener('submit', async (e) => {
     e.preventDefault();
     const period = parseInt(overlay.querySelector('#cfg-period').value, 10) || 3;
-    const currentMonth = overlay.querySelector('#cfg-month').value || settings.currentMonth;
-    const updated = await saveSettings({ ...settings, period, currentMonth });
+    const currentMonth = overlay.querySelector('#cfg-month').value || null;
+    // Fetch fresh settings so any drive fields saved during this modal session are preserved
+    const fresh = await getSettings();
+    const updated = await saveSettings({ ...fresh, period, currentMonth: currentMonth || fresh.currentMonth });
     close();
     onSaved(updated);
   });

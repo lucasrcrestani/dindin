@@ -13,6 +13,7 @@
     <header id="app-header" class="header">
       <h1 class="header__title">DinDin</h1>
       <div class="header__actions">
+        <div id="drive-sync-area"></div>
         <button id="btn-settings" class="btn-icon" title="Configurações" aria-label="Configurações">&#9881;</button>
       </div>
     </header>
@@ -21,6 +22,10 @@
 
   <!-- Modals container -->
   <div id="modals"></div>
+
+  <!-- Google APIs: Picker + Identity Services -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="window.onGapiLoad && window.onGapiLoad()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="window.onGisLoad && window.onGisLoad()"></script>
 
   <!-- JS modules -->
   <script type="module" src="./assets/js/app.js"></script>

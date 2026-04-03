@@ -28,4 +28,15 @@ function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export { formatCurrency, formatMonthDisplay, capitalize };
+/**
+ * Format a YYYY-MM-DD date string to a human-readable date label.
+ * @param {string} dateStr
+ * @returns {string} e.g. "03 de abril de 2026"
+ */
+function formatShortDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+export { formatCurrency, formatMonthDisplay, capitalize, formatShortDate };

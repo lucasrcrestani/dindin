@@ -1,0 +1,17 @@
+# Environment / secrets
+.env
+.env.*
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
+
+# Build outputs
+/dist
+/build
+/public

@@ -9,6 +9,10 @@ function defaultSettings() {
   return {
     period: 3,
     currentMonth: null,
+    driveConnected: false,
+    driveFileId: null,
+    driveFileName: null,
+    lastSyncedAt: null,
   };
 }
 

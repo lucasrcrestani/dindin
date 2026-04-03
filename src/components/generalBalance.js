@@ -1,4 +1,4 @@
-﻿import { formatCurrency, formatMonthDisplay, capitalize } from '../utils/formatters.js';
+﻿import { formatCurrency, formatMonthDisplay, capitalize, formatShortDate } from '../utils/formatters.js';
 import { computeCategoryBalances, computeGeneralBalance } from '../utils/balanceUtils.js';
 import { createCategoryCard } from './categoryCard.js';
 import RecordType from '../models/RecordType.js';
@@ -16,6 +16,11 @@ function renderGeneralBalance(container, { categories, records, monthKey, onCate
 
   const monthLabel = capitalize(formatMonthDisplay(monthKey));
 
+  const lastRecord = records.length
+    ? records.reduce((latest, r) => (r.date > latest.date ? r : latest))
+    : null;
+  const lastDateLabel = lastRecord ? formatShortDate(lastRecord.date) : null;
+
   const wrapper = document.createElement('div');
   wrapper.className = 'balance-view';
 
@@ -31,6 +36,7 @@ function renderGeneralBalance(container, { categories, records, monthKey, onCate
         <span>Receita Real: ${formatCurrency(general.actualIncome)}</span>
         <span>Despesas: ${formatCurrency(general.expenses)}</span>
       </div>
+      ${lastDateLabel ? `<p class="balance-summary__last-record">Último registro: ${lastDateLabel}</p>` : ''}
     </div>
   `;
 

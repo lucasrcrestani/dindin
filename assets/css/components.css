@@ -134,6 +134,13 @@
   color: var(--color-text-muted);
 }
 
+.balance-summary__last-record {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  opacity: 0.75;
+  margin-top: var(--spacing-xs);
+}
+
 /* ─── Balance section ─────────────────────────────── */
 .balance-section {
   display: flex;
@@ -452,6 +459,67 @@
   color: var(--color-red);
   font-size: var(--font-size-sm);
   margin-top: var(--spacing-xs);
+}
+
+/* ─── Drive sync button (header) ──────────────────── */
+.drive-sync-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 8px;
+  min-width: 40px;
+}
+
+.drive-sync-btn__icon {
+  font-size: 1.1rem;
+  display: block;
+  transition: color 0.2s;
+}
+
+.drive-sync-btn__time {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+.drive-sync-btn--loading .drive-sync-btn__icon {
+  animation: dindin-spin 1s linear infinite;
+}
+
+.drive-sync-btn--error .drive-sync-btn__icon {
+  color: var(--color-red);
+}
+
+@keyframes dindin-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─── Drive info (settings modal) ─────────────────── */
+.drive-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.drive-info__icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.drive-info__name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.drive-info__meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }
 
 /* ─── Category detail modal ───────────────────────── */
