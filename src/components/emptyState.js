@@ -1,4 +1,4 @@
-import { importData } from '../services/importExportService.js';
+import { parseImportFile, importDataFromObject } from '../services/importExportService.js';
 import { setState } from '../store/appState.js';
 
 /**
@@ -28,7 +28,17 @@ function renderEmptyState(container, { onCreateCategory }) {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      await importData(file);
+      const { payload, isNewer } = await parseImportFile(file);
+      if (!isNewer) {
+        const confirmed = window.confirm(
+          'Os dados do arquivo são mais antigos ou iguais aos locais. Deseja substituir mesmo assim?'
+        );
+        if (!confirmed) {
+          e.target.value = '';
+          return;
+        }
+      }
+      await importDataFromObject(payload);
       setState({ currentView: 'main' });
       window.dispatchEvent(new CustomEvent('dindin:reload'));
     } catch (err) {

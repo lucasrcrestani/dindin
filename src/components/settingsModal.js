@@ -3,7 +3,7 @@ import { getAllCategories } from '../services/categoryService.js';
 import { parseCSV, executeCSVImport } from '../services/csvImportService.js';
 import { openCSVImportModal } from './csvImportModal.js';
 import { listPastMonths } from '../utils/dateUtils.js';
-import { exportData, importData, getExportPayload } from '../services/importExportService.js';
+import { exportData, importDataFromObject, parseImportFile, getExportPayload } from '../services/importExportService.js';
 import { signIn, signOut, createFile, syncWithDrive, startAutoSync, stopAutoSync, hasCredentials, clearCredentials } from '../services/driveService.js';
 import { openFilePicker } from '../services/pickerService.js';
 import { openDriveCredentialsModal } from './driveCredentialsModal.js';
@@ -226,16 +226,18 @@ async function openSettingsModal({ onSaved }) {
     const jsonErrorEl = overlay.querySelector('#cfg-json-error');
     jsonErrorEl.style.display = 'none';
 
-    const confirmed = window.confirm(
-      'Isso substituirá TODOS os dados atuais pelo conteúdo do arquivo. Continuar?'
-    );
-    if (!confirmed) {
-      e.target.value = '';
-      return;
-    }
-
     try {
-      await importData(file);
+      const { payload, isNewer } = await parseImportFile(file);
+      if (!isNewer) {
+        const confirmed = window.confirm(
+          'Os dados do arquivo são mais antigos ou iguais aos locais. Deseja substituir mesmo assim?'
+        );
+        if (!confirmed) {
+          e.target.value = '';
+          return;
+        }
+      }
+      await importDataFromObject(payload);
       close();
       window.dispatchEvent(new CustomEvent('dindin:reload'));
     } catch (err) {

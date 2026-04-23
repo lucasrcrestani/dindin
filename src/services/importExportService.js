@@ -57,4 +57,38 @@ async function importData(file) {
   await importDataFromObject(payload);
 }
 
-export { getExportPayload, importDataFromObject, exportData, importData };
+/** Returns the maximum createdAt ISO string among all records, or null. */
+function _getMaxCreatedAt(records = []) {
+  if (!records.length) return null;
+  return records.reduce((max, r) => (r.createdAt > max ? r.createdAt : max), records[0].createdAt);
+}
+
+/**
+ * Returns true if the incoming payload has records newer than the local payload.
+ * Comparison is based on the maximum `createdAt` value across all records.
+ */
+function isPayloadNewer(incomingPayload, localPayload) {
+  const incomingMax = _getMaxCreatedAt(incomingPayload.records ?? []);
+  const localMax    = _getMaxCreatedAt(localPayload.records ?? []);
+  if (!incomingMax) return false;
+  if (!localMax)    return true;
+  return incomingMax > localMax;
+}
+
+/**
+ * Parses a JSON file and checks whether its data is newer than the local DB.
+ * @returns {Promise<{ payload: object, isNewer: boolean }>}
+ */
+async function parseImportFile(file) {
+  const text = await file.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error('Arquivo JSON inválido.');
+  }
+  const localPayload = await getExportPayload();
+  return { payload, isNewer: isPayloadNewer(payload, localPayload) };
+}
+
+export { getExportPayload, importDataFromObject, exportData, importData, isPayloadNewer, parseImportFile };

@@ -1,8 +1,9 @@
-import { syncWithDrive } from '../services/driveService.js';
+import { syncWithDrive, confirmImportFromDrive } from '../services/driveService.js';
 import { getSettings } from '../services/settingsService.js';
 
 let _buttonEl = null;
 let _syncing  = false;
+let _confirmationPending = false;
 
 function _formatTime(isoString) {
   if (!isoString) return 'Nunca';
@@ -84,6 +85,23 @@ window.addEventListener('dindin:drive-auth-needed', () => {
   const time = _buttonEl.querySelector('.drive-sync-btn__time');
   if (time) time.textContent = 'Reconectar';
   _buttonEl.title = 'Sessão expirada — clique para reconectar';
+});
+
+window.addEventListener('dindin:sync-confirmation-needed', async (e) => {
+  if (_confirmationPending) return;
+  _confirmationPending = true;
+  const { payload } = e.detail;
+  const confirmed = window.confirm(
+    'Os dados do Drive são mais antigos ou iguais aos dados locais. Deseja substituir os dados locais mesmo assim?'
+  );
+  if (confirmed) {
+    try {
+      await confirmImportFromDrive(payload);
+    } catch (err) {
+      console.error('[DriveSyncButton] Erro ao confirmar importação:', err);
+    }
+  }
+  _confirmationPending = false;
 });
 
 export { renderDriveSyncButton };

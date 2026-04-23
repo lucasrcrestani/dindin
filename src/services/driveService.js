@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from './settingsService.js';
-import { getExportPayload, importDataFromObject } from './importExportService.js';
+import { getExportPayload, importDataFromObject, isPayloadNewer } from './importExportService.js';
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 // Credentials are provided by the user at first-sync and stored in localStorage.
@@ -212,27 +212,11 @@ async function createFile(name, payload) {
 
 // ── Sync logic ────────────────────────────────────────────────────────────────
 /**
- * Merges two payloads by taking the union of all entities by id.
- * Local values win on conflicts. Local settings always take precedence
- * (they contain device-specific drive connection info).
- */
-function _mergePayloads(localPayload, drivePayload) {
-  const byId = (arr) => Object.fromEntries((arr ?? []).map((x) => [x.id, x]));
-  return {
-    categories:        Object.values({ ...byId(drivePayload.categories),        ...byId(localPayload.categories) }),
-    records:           Object.values({ ...byId(drivePayload.records),           ...byId(localPayload.records) }),
-    commonRecordNames: Object.values({ ...byId(drivePayload.commonRecordNames), ...byId(localPayload.commonRecordNames) }),
-    settings: localPayload.settings,
-  };
-}
-
-/**
- * Full bidirectional sync:
+ * Pull-only sync:
  *   1. Download Drive file
- *   2. Merge with local IndexedDB (union by id, local wins)
- *   3. Import merged data into IndexedDB
- *   4. Upload merged data back to Drive
- *   5. Update lastSyncedAt
+ *   2. Compare freshness via max createdAt across records
+ *   3a. If Drive is newer → overwrite local DB automatically
+ *   3b. If Drive is older/equal → dispatch dindin:sync-confirmation-needed for user to decide
  *
  * @param {object} opts
  * @param {boolean} opts.silent - Pass true for background auto-sync (no popup on token expiry).
@@ -247,26 +231,40 @@ async function syncWithDrive({ silent = true } = {}) {
     drivePayload = await downloadFile(settings.driveFileId, { silent });
   } catch (err) {
     if (!err.message.includes('404')) throw err;
-    // File was deleted from Drive — continue with empty remote payload
+    // File was deleted from Drive — nothing to import
+    return;
   }
 
-  // 2. Merge
+  // 2. Check freshness
   const localPayload = await getExportPayload();
-  const merged = _mergePayloads(localPayload, drivePayload);
+  if (isPayloadNewer(drivePayload, localPayload)) {
+    // 3a. Auto-import: Drive has newer data
+    await _applyDrivePayload(drivePayload);
+  } else {
+    // 3b. Drive data is older or equal — ask for confirmation
+    window.dispatchEvent(new CustomEvent('dindin:sync-confirmation-needed', { detail: { payload: drivePayload } }));
+  }
+}
 
-  // 3. Import merged data (replaces local IndexedDB)
-  await importDataFromObject(merged);
-
-  // 4. Upload merged data
-  await uploadFile(settings.driveFileId, settings.driveFileName, merged, { silent });
-
-  // 5. Update timestamp
+/**
+ * Imports a Drive payload and updates lastSyncedAt.
+ * Used internally and by confirmImportFromDrive.
+ */
+async function _applyDrivePayload(payload) {
+  await importDataFromObject(payload);
   const now = new Date().toISOString();
   const fresh = await getSettings();
   await saveSettings({ ...fresh, lastSyncedAt: now });
-
   window.dispatchEvent(new CustomEvent('dindin:drive-synced', { detail: { lastSyncedAt: now } }));
   window.dispatchEvent(new CustomEvent('dindin:reload'));
+}
+
+/**
+ * Imports a Drive payload that was previously deferred for user confirmation.
+ * Call this after the user confirms overwriting local data with older/same Drive data.
+ */
+async function confirmImportFromDrive(payload) {
+  await _applyDrivePayload(payload);
 }
 
 /** Starts the 60-second auto-sync interval. Replaces any existing interval. */
@@ -302,6 +300,7 @@ export {
   downloadFile,
   createFile,
   syncWithDrive,
+  confirmImportFromDrive,
   startAutoSync,
   stopAutoSync,
 };
