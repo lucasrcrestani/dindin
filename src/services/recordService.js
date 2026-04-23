@@ -31,6 +31,12 @@ async function deleteRecordsByCategory(categoryId) {
   await Promise.all(records.map((r) => promisify(store.delete(r.id))));
 }
 
+/** Returns all records for the given month that are marked as recurring. */
+async function getRecurringRecordsByMonth(month) {
+  const records = await getRecordsByMonth(month);
+  return records.filter((r) => r.isRecurring === true);
+}
+
 /** Returns all distinct month keys (YYYY-MM) that have at least one record, sorted ascending. */
 function getAllMonthsWithRecords() {
   return new Promise((resolve, reject) => {
@@ -54,6 +60,7 @@ export {
   getAllRecords,
   getRecordsByMonth,
   getRecordsByCategory,
+  getRecurringRecordsByMonth,
   saveRecord,
   deleteRecord,
   deleteRecordsByCategory,

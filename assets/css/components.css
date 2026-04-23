@@ -751,6 +751,213 @@
   color: var(--color-primary);
 }
 
+/* ─── Recurring Records Card ──────────────────────── */
+.recurring-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin: var(--spacing-md) var(--spacing-md);
+  overflow: hidden;
+}
+
+.recurring-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.recurring-card__title {
+  font-weight: 700;
+  font-size: var(--font-size-md);
+}
+
+.recurring-card__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.recurring-card__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recurring-card__item {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto;
+  align-items: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.recurring-card__item:last-child {
+  border-bottom: none;
+}
+
+.recurring-card__type {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+  width: 16px;
+  text-align: center;
+}
+
+.recurring-card__type--expense {
+  color: var(--color-danger);
+}
+
+.recurring-card__type--income {
+  color: var(--color-success);
+}
+
+.recurring-card__name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recurring-card__category {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recurring-card__value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: right;
+}
+
+.recurring-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.recurring-card__total {
+  font-weight: 700;
+  font-size: var(--font-size-md);
+}
+
+.recurring-card__total--positive {
+  color: var(--color-success);
+}
+
+.recurring-card__total--negative {
+  color: var(--color-danger);
+}
+
+/* ─── Recurring Confirm Modal ─────────────────────── */
+.recurring-confirm__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-md);
+}
+
+.recurring-confirm__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.recurring-confirm__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--spacing-md) 0;
+}
+
+.recurring-confirm__item {
+  background: var(--color-surface-alt, var(--color-bg));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.recurring-confirm__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.recurring-confirm__category {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recurring-confirm__fields {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.recurring-confirm__name-input {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  min-width: 0;
+}
+
+.recurring-confirm__value-input {
+  width: 100px;
+  flex-shrink: 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  text-align: right;
+}
+
+/* ─── Checkbox form group ─────────────────────────── */
+.form-group--checkbox {
+  padding-top: var(--spacing-xs);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .audit-filter-btn--active {
   background: var(--color-primary);
   border-color: var(--color-primary);

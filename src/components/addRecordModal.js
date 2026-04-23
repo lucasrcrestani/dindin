@@ -50,6 +50,12 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
             <label for="rec-date">Data</label>
             <input id="rec-date" type="date" required />
           </div>
+          <div class="form-group form-group--checkbox">
+            <label class="checkbox-label">
+              <input id="rec-recurring" type="checkbox" />
+              Recorrente (repete todo mês)
+            </label>
+          </div>
           <div class="form-group">
             <label for="rec-value">Valor (R$)</label>
             <input id="rec-value" type="text" inputmode="decimal" placeholder="0,00 ou 10 + 5" required />
@@ -91,6 +97,7 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   if (initial) {
     overlay.querySelector('#rec-name').value = initial.name ?? '';
     overlay.querySelector('#rec-value').value = initial.value ?? '';
+    overlay.querySelector('#rec-recurring').checked = initial.isRecurring ?? false;
   }
 
   // ─── Autocomplete ──────────────────────────────────────────────────────────
@@ -126,6 +133,7 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
     const rawValue = overlay.querySelector('#rec-value').value.trim();
     const categoryId = overlay.querySelector('#rec-category').value;
     const date = overlay.querySelector('#rec-date').value;
+    const isRecurring = overlay.querySelector('#rec-recurring').checked;
     const valueError = overlay.querySelector('#rec-value-error');
 
     const parsed = parseFormula(rawValue);
@@ -147,8 +155,8 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
 
     const record = await saveRecord(
       isEditing
-        ? { ...initial, categoryId, value: rawValue, name, date, month }
-        : { categoryId, value: rawValue, name, date }
+        ? { ...initial, categoryId, value: rawValue, name, date, month, isRecurring }
+        : { categoryId, value: rawValue, name, date, isRecurring }
     );
     await addCommonRecordName(name);
 

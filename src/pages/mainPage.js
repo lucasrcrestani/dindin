@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from '../services/settingsService.js';
 import { getAllCategories } from '../services/categoryService.js';
-import { getRecordsByMonth } from '../services/recordService.js';
+import { getRecordsByMonth, getRecurringRecordsByMonth, saveRecord } from '../services/recordService.js';
 import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
 import { renderEmptyState } from '../components/emptyState.js';
 import { renderGeneralBalance } from '../components/generalBalance.js';
@@ -10,8 +10,11 @@ import { openCategoryModal } from '../components/addCategoryModal.js';
 import { openAddRecordModal } from '../components/addRecordModal.js';
 import { openHistoryModal } from '../components/historyModal.js';
 import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
+import { openRecurringConfirmModal } from '../components/recurringConfirmModal.js';
+import { renderRecurringRecordsCard } from '../components/recurringRecordsCard.js';
 import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
 import { computeHistoricalAverages, computePerMonthCategoryTotals } from '../utils/balanceUtils.js';
+import { createRecord } from '../models/Record.js';
 
 const main = document.getElementById('app-main');
 
@@ -57,7 +60,7 @@ async function renderMain() {
   const pastMonths = periodMonths.filter((m) => m !== monthKey);
   const categoryMonthlyTotals = computePerMonthCategoryTotals(_categories, recordsByMonth, pastMonths);
 
-  renderGeneralBalance(main, {
+  const balanceWrapper = renderGeneralBalance(main, {
     categories: _categories,
     records,
     monthKey: monthKey ?? '',
@@ -74,6 +77,16 @@ async function renderMain() {
     }),
   });
 
+  // Recurring records card — inserted right after the balance summary
+  if (monthKey) {
+    const recurringRecords = await getRecurringRecordsByMonth(monthKey);
+    const recurringCard = renderRecurringRecordsCard({ records: recurringRecords, categories: _categories });
+    if (recurringCard) {
+      const balanceSummary = balanceWrapper.querySelector('.balance-summary');
+      balanceSummary.insertAdjacentElement('afterend', recurringCard);
+    }
+  }
+
   // Bottom bar events
   main.querySelector('#btn-history')?.addEventListener('click', () => {
     openHistoryModal({ categories: _categories, settings: _settings });
@@ -85,9 +98,37 @@ async function renderMain() {
       return;
     }
     if (!confirm(`Encerrar ${_settings.currentMonth} e avançar para o próximo mês?`)) return;
-    const next = incrementMonth(_settings.currentMonth);
-    _settings = await saveSettings({ ..._settings, currentMonth: next });
-    await renderMain();
+
+    const currentMonth = _settings.currentMonth;
+    const next = incrementMonth(currentMonth);
+    const recurringRecords = await getRecurringRecordsByMonth(currentMonth);
+
+    if (recurringRecords.length > 0) {
+      openRecurringConfirmModal({
+        records: recurringRecords,
+        categories: _categories,
+        newMonth: next,
+        onConfirm: async (confirmedRecords) => {
+          // Create independent copies for the new month
+          for (const r of confirmedRecords) {
+            const newDate = `${next}-01`;
+            await saveRecord(createRecord({
+              categoryId: r.categoryId,
+              value: r.value,
+              name: r.name,
+              date: newDate,
+              isRecurring: true,
+            }));
+          }
+          _settings = await saveSettings({ ..._settings, currentMonth: next });
+          await renderMain();
+        },
+        onCancel: () => {},
+      });
+    } else {
+      _settings = await saveSettings({ ..._settings, currentMonth: next });
+      await renderMain();
+    }
   });
 
   // Floating action button

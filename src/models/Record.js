@@ -6,16 +6,17 @@ import { generateId } from '../utils/idUtils.js';
  * @property {string} categoryId
  * @property {string|number} value - Raw formula string (e.g. "50+7") or legacy numeric value.
  * @property {string} name
- * @property {string} date      - format: YYYY-MM-DD (date the record happened)
- * @property {string} month     - format: YYYY-MM (derived from date, used for filtering)
- * @property {string} createdAt - ISO string
+ * @property {string} date        - format: YYYY-MM-DD (date the record happened)
+ * @property {string} month       - format: YYYY-MM (derived from date, used for filtering)
+ * @property {boolean} isRecurring - whether the record repeats every month
+ * @property {string} createdAt   - ISO string
  */
 
 /**
  * @param {Omit<Record, 'id' | 'createdAt' | 'month'>} data
  * @returns {Record}
  */
-function createRecord({ categoryId, value, name, date }) {
+function createRecord({ categoryId, value, name, date, isRecurring }) {
   const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
   const month = resolvedDate.slice(0, 7); // YYYY-MM
   return {
@@ -25,6 +26,7 @@ function createRecord({ categoryId, value, name, date }) {
     name,
     date: resolvedDate,
     month,
+    isRecurring: isRecurring ?? false,
     createdAt: new Date().toISOString(),
   };
 }

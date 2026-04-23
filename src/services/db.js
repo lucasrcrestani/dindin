@@ -1,5 +1,5 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORES = {
   CATEGORIES: 'categories',
@@ -50,6 +50,14 @@ function initDB() {
         auditStore.createIndex('timestamp', 'timestamp', { unique: false });
         auditStore.createIndex('entityType', 'entityType', { unique: false });
         auditStore.createIndex('action', 'action', { unique: false });
+      }
+      // v3: add isRecurring index on records store
+      if (database.objectStoreNames.contains(STORES.RECORDS)) {
+        const tx = event.target.transaction;
+        const recStore = tx.objectStore(STORES.RECORDS);
+        if (!recStore.indexNames.contains('isRecurring')) {
+          recStore.createIndex('isRecurring', 'isRecurring', { unique: false });
+        }
       }
     };
 
