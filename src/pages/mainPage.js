@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from '../services/settingsService.js';
 import { getAllCategories } from '../services/categoryService.js';
-import { getRecordsByMonth, getRecurringRecordsByMonth, saveRecord } from '../services/recordService.js';
+import { getRecordsByMonth, getRecurringRecordsByMonth, getInstallmentsByMonth, quitarInstallments, updateInstallmentFromCurrent, saveRecord } from '../services/recordService.js';
 import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
 import { renderEmptyState } from '../components/emptyState.js';
 import { renderGeneralBalance } from '../components/generalBalance.js';
@@ -12,6 +12,7 @@ import { openHistoryModal } from '../components/historyModal.js';
 import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
 import { openRecurringConfirmModal } from '../components/recurringConfirmModal.js';
 import { renderRecurringRecordsCard } from '../components/recurringRecordsCard.js';
+import { renderInstallmentRecordsCard } from '../components/installmentRecordsCard.js';
 import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
 import { computeHistoricalAverages, computePerMonthCategoryTotals } from '../utils/balanceUtils.js';
 import { createRecord } from '../models/Record.js';
@@ -84,6 +85,33 @@ async function renderMain() {
     if (recurringCard) {
       const balanceSummary = balanceWrapper.querySelector('.balance-summary');
       balanceSummary.insertAdjacentElement('afterend', recurringCard);
+    }
+
+    // Installment records card — inserted after recurring card (or after balance summary if none)
+    const installmentRecords = await getInstallmentsByMonth(monthKey);
+    const installmentCard = renderInstallmentRecordsCard({
+      records: installmentRecords,
+      categories: _categories,
+      onEdit: (record) => {
+        openAddRecordModal({
+          categories: _categories,
+          commonRecordNames,
+          settings: _settings,
+          initial: record,
+          onSaved: async (updatedRecord) => {
+            await updateInstallmentFromCurrent(updatedRecord);
+            await renderMain();
+          },
+        });
+      },
+      onQuitar: async (groupId) => {
+        await quitarInstallments(groupId, monthKey);
+        await renderMain();
+      },
+    });
+    if (installmentCard) {
+      const anchor = balanceWrapper.querySelector('.balance-summary');
+      anchor.insertAdjacentElement('afterend', installmentCard);
     }
   }
 

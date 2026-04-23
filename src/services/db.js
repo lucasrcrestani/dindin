@@ -1,5 +1,5 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORES = {
   CATEGORIES: 'categories',
@@ -17,7 +17,10 @@ function initDB() {
   // If we have a cached connection, validate it has all required stores.
   // A stale v1 connection (e.g. from a module hot-reload) would be missing AUDIT_LOG.
   if (db) {
-    if (db.objectStoreNames.contains(STORES.AUDIT_LOG)) {
+    const tx = db.transaction(STORES.RECORDS, 'readonly');
+    const hasNewIndex = tx.objectStore(STORES.RECORDS).indexNames.contains('installmentGroupId');
+    tx.abort();
+    if (db.objectStoreNames.contains(STORES.AUDIT_LOG) && hasNewIndex) {
       return Promise.resolve(db);
     }
     // Stale connection — close it and fall through to open a fresh one.
@@ -52,11 +55,15 @@ function initDB() {
         auditStore.createIndex('action', 'action', { unique: false });
       }
       // v3: add isRecurring index on records store
+      // v4: add installmentGroupId index on records store
       if (database.objectStoreNames.contains(STORES.RECORDS)) {
         const tx = event.target.transaction;
         const recStore = tx.objectStore(STORES.RECORDS);
         if (!recStore.indexNames.contains('isRecurring')) {
           recStore.createIndex('isRecurring', 'isRecurring', { unique: false });
+        }
+        if (!recStore.indexNames.contains('installmentGroupId')) {
+          recStore.createIndex('installmentGroupId', 'installmentGroupId', { unique: false });
         }
       }
     };

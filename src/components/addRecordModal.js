@@ -1,4 +1,4 @@
-import { saveRecord } from '../services/recordService.js';
+import { saveRecord, saveInstallmentGroup } from '../services/recordService.js';
 import { addCommonRecordName } from '../services/commonRecordNameService.js';
 import { saveSettings } from '../services/settingsService.js';
 import RecordType from '../models/RecordType.js';
@@ -50,11 +50,22 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
             <label for="rec-date">Data</label>
             <input id="rec-date" type="date" required />
           </div>
-          <div class="form-group form-group--checkbox">
+          <div id="rec-recurring-group" class="form-group form-group--checkbox">
             <label class="checkbox-label">
               <input id="rec-recurring" type="checkbox" />
               Recorrente (repete todo mês)
             </label>
+          </div>
+          <div id="rec-installment-group" class="form-group form-group--checkbox">
+            <label class="checkbox-label">
+              <input id="rec-installment" type="checkbox" />
+              Parcelado
+            </label>
+          </div>
+          <div id="rec-installment-count-group" class="form-group" style="display:none">
+            <label for="rec-installment-count">Número de parcelas</label>
+            <input id="rec-installment-count" type="number" min="2" max="360" placeholder="Ex.: 12" />
+            <span id="rec-installment-count-error" class="form-error" style="display:none">Informe um número de parcelas válido (mínimo 2).</span>
           </div>
           <div class="form-group">
             <label for="rec-value">Valor (R$)</label>
@@ -100,6 +111,38 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
     overlay.querySelector('#rec-recurring').checked = initial.isRecurring ?? false;
   }
 
+  // When editing an installment record, hide recurring/installment toggles and show info badge
+  const isEditingInstallment = isEditing && initial?.isInstallment;
+  if (isEditingInstallment) {
+    overlay.querySelector('#rec-recurring-group').style.display = 'none';
+    overlay.querySelector('#rec-installment-group').style.display = 'none';
+    const badge = document.createElement('div');
+    badge.className = 'form-group installment-badge';
+    badge.innerHTML = `<span class="badge badge--installment">Parcela ${initial.installmentNumber}/${initial.installmentTotal}</span>`;
+    overlay.querySelector('#rec-installment-group').insertAdjacentElement('afterend', badge);
+  }
+
+  // ─── Parcelado / Recorrente mutual exclusion ───────────────────────────────
+  const recurringCheckbox = overlay.querySelector('#rec-recurring');
+  const installmentCheckbox = overlay.querySelector('#rec-installment');
+  const installmentCountGroup = overlay.querySelector('#rec-installment-count-group');
+
+  recurringCheckbox.addEventListener('change', () => {
+    if (recurringCheckbox.checked) {
+      installmentCheckbox.checked = false;
+      installmentCountGroup.style.display = 'none';
+    }
+  });
+
+  installmentCheckbox.addEventListener('change', () => {
+    if (installmentCheckbox.checked) {
+      recurringCheckbox.checked = false;
+      installmentCountGroup.style.display = '';
+    } else {
+      installmentCountGroup.style.display = 'none';
+    }
+  });
+
   // ─── Autocomplete ──────────────────────────────────────────────────────────
   const nameInput = overlay.querySelector('#rec-name');
   const acList = overlay.querySelector('#autocomplete-list');
@@ -134,7 +177,9 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
     const categoryId = overlay.querySelector('#rec-category').value;
     const date = overlay.querySelector('#rec-date').value;
     const isRecurring = overlay.querySelector('#rec-recurring').checked;
+    const isInstallment = overlay.querySelector('#rec-installment').checked;
     const valueError = overlay.querySelector('#rec-value-error');
+    const countError = overlay.querySelector('#rec-installment-count-error');
 
     const parsed = parseFormula(rawValue);
     if (parsed === null || isNaN(parsed)) {
@@ -144,6 +189,29 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
     valueError.style.display = 'none';
 
     if (!name || !categoryId || !date) return;
+
+    // Validate installment count
+    if (isInstallment && !isEditingInstallment) {
+      const countInput = overlay.querySelector('#rec-installment-count');
+      const count = parseInt(countInput.value, 10);
+      if (!count || count < 2) {
+        countError.style.display = '';
+        return;
+      }
+      countError.style.display = 'none';
+
+      const month = date.slice(0, 7);
+      let updatedSettings = settings;
+      if (!settings.currentMonth) {
+        updatedSettings = await saveSettings({ ...settings, currentMonth: month });
+      }
+
+      const records = await saveInstallmentGroup({ categoryId, value: rawValue, name, date }, count);
+      await addCommonRecordName(name);
+      close();
+      onSaved(records[0], updatedSettings);
+      return;
+    }
 
     const month = date.slice(0, 7); // YYYY-MM derived from date
 
