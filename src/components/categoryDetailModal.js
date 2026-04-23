@@ -52,7 +52,11 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
     const listContainer = overlay.querySelector('#detail-record-list');
     listContainer.innerHTML = '';
 
-    const sorted = [...categoryRecords].sort((a, b) => b.date.localeCompare(a.date));
+    const sorted = [...categoryRecords].sort((a, b) => {
+      const dateDiff = b.date.localeCompare(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
 
     if (sorted.length === 0) {
       listContainer.innerHTML = '<p class="record-list__empty">Nenhum lançamento neste mês.</p>';
