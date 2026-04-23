@@ -1,6 +1,7 @@
 import { deleteRecord } from '../services/recordService.js';
 import { openAddRecordModal } from './addRecordModal.js';
 import { formatCurrency, formatMonthDisplay, capitalize } from '../utils/formatters.js';
+import { parseFormula } from '../utils/formulaUtils.js';
 
 /**
  * Opens the category detail modal showing all records of a category for a given month.
@@ -72,7 +73,7 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
       li.innerHTML = `
         <span class="record-list__date">${formatDate(rec.date)}</span>
         <span class="record-list__name">${escapeHtml(rec.name)}</span>
-        <span class="record-list__value">${formatCurrency(rec.value)}</span>
+        <span class="record-list__value">${formatCurrency(parseFormula(rec.value) ?? 0)}</span>
         <button class="btn btn--secondary btn--sm record-list__edit" aria-label="Editar lançamento">✏️</button>
         <button class="btn btn--danger btn--sm record-list__delete" aria-label="Excluir lançamento">✕</button>
       `;
@@ -102,7 +103,7 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
       ul.appendChild(li);
     });
 
-    const total = categoryRecords.reduce((sum, r) => sum + r.value, 0);
+    const total = categoryRecords.reduce((sum, r) => sum + (parseFormula(r.value) ?? 0), 0);
     const totalLi = document.createElement('li');
     totalLi.className = 'record-list__total';
     totalLi.innerHTML = `

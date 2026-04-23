@@ -1,4 +1,5 @@
 import RecordType from '../models/RecordType.js';
+import { parseFormula } from './formulaUtils.js';
 
 const YELLOW_THRESHOLD = 0.75;
 
@@ -50,7 +51,7 @@ function getIncomeCategoryStatus(actual, idealValue) {
 function computeCategoryBalances(categories, monthRecords) {
   const totals = new Map();
   for (const record of monthRecords) {
-    totals.set(record.categoryId, (totals.get(record.categoryId) ?? 0) + record.value);
+    totals.set(record.categoryId, (totals.get(record.categoryId) ?? 0) + (parseFormula(record.value) ?? 0));
   }
 
   return categories.map((category) => {

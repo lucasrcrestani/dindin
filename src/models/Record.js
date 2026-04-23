@@ -4,7 +4,7 @@ import { generateId } from '../utils/idUtils.js';
  * @typedef {Object} Record
  * @property {string} id
  * @property {string} categoryId
- * @property {number} value
+ * @property {string|number} value - Raw formula string (e.g. "50+7") or legacy numeric value.
  * @property {string} name
  * @property {string} date      - format: YYYY-MM-DD (date the record happened)
  * @property {string} month     - format: YYYY-MM (derived from date, used for filtering)

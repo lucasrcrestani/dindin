@@ -2,6 +2,7 @@ import { saveRecord } from '../services/recordService.js';
 import { addCommonRecordName } from '../services/commonRecordNameService.js';
 import { saveSettings } from '../services/settingsService.js';
 import RecordType from '../models/RecordType.js';
+import { parseFormula } from '../utils/formulaUtils.js';
 
 /**
  * Open the add record modal.
@@ -51,7 +52,8 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
           </div>
           <div class="form-group">
             <label for="rec-value">Valor (R$)</label>
-            <input id="rec-value" type="number" min="0.01" step="0.01" placeholder="0,00" required />
+            <input id="rec-value" type="text" inputmode="decimal" placeholder="0,00 ou 10 + 5" required />
+            <span id="rec-value-error" class="form-error" style="display:none">Fórmula inválida.</span>
           </div>
           <div class="modal__footer">
             <button type="button" class="btn btn--secondary" id="btn-rec-cancel">Cancelar</button>
@@ -121,11 +123,19 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   overlay.querySelector('#form-record').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = nameInput.value.trim();
-    const value = parseFloat(overlay.querySelector('#rec-value').value);
+    const rawValue = overlay.querySelector('#rec-value').value.trim();
     const categoryId = overlay.querySelector('#rec-category').value;
     const date = overlay.querySelector('#rec-date').value;
+    const valueError = overlay.querySelector('#rec-value-error');
 
-    if (!name || !categoryId || isNaN(value) || value <= 0 || !date) return;
+    const parsed = parseFormula(rawValue);
+    if (parsed === null || isNaN(parsed)) {
+      valueError.style.display = '';
+      return;
+    }
+    valueError.style.display = 'none';
+
+    if (!name || !categoryId || !date) return;
 
     const month = date.slice(0, 7); // YYYY-MM derived from date
 
@@ -137,8 +147,8 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
 
     const record = await saveRecord(
       isEditing
-        ? { ...initial, categoryId, value, name, date, month }
-        : { categoryId, value, name, date }
+        ? { ...initial, categoryId, value: rawValue, name, date, month }
+        : { categoryId, value: rawValue, name, date }
     );
     await addCommonRecordName(name);
 
