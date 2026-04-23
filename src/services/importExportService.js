@@ -1,12 +1,12 @@
-import { getAllCategories, saveCategory } from './categoryService.js';
-import { getAllRecords, saveRecord } from './recordService.js';
+import { getAllCategories } from './categoryService.js';
+import { getAllRecords } from './recordService.js';
 import { getSettings, saveSettings } from './settingsService.js';
 import { getAllCommonRecordNames } from './commonRecordNameService.js';
 import { getStore, promisify, STORES } from './db.js';
 
 /** Returns all data as a plain object without triggering a file download. */
 async function getExportPayload() {
-  const [categories, records, settings, commonRecordNames] = await Promise.all([
+  const [categories, records, settings, commonRecordNames, auditLog] = await Promise.all([
     getAllCategories(),
     getAllRecords(),
     getSettings(),
@@ -26,8 +26,8 @@ async function importDataFromObject({ categories = [], records = [], settings, c
   await promisify(getStore(STORES.CATEGORIES, 'readwrite').clear());
   await promisify(getStore(STORES.SETTINGS, 'readwrite').clear());
 
-  await Promise.all(categories.map((c) => saveCategory(c)));
-  await Promise.all(records.map((r) => saveRecord(r)));
+  await Promise.all(categories.map((c) => promisify(getStore(STORES.CATEGORIES, 'readwrite').put(c))));
+  await Promise.all(records.map((r) => promisify(getStore(STORES.RECORDS, 'readwrite').put(r))));
   if (settings) await saveSettings(settings);
   await Promise.all(
     commonRecordNames.map((n) => promisify(getStore(STORES.COMMON_RECORD_NAMES, 'readwrite').put(n))),
@@ -76,6 +76,14 @@ function isPayloadNewer(incomingPayload, localPayload) {
 }
 
 /**
+ * Returns true if both payloads share the same maximum createdAt timestamp,
+ * meaning neither has records newer than the other.
+ */
+function arePayloadsInSync(payloadA, payloadB) {
+  return _getMaxCreatedAt(payloadA.records ?? []) === _getMaxCreatedAt(payloadB.records ?? []);
+}
+
+/**
  * Parses a JSON file and checks whether its data is newer than the local DB.
  * @returns {Promise<{ payload: object, isNewer: boolean }>}
  */
@@ -91,4 +99,4 @@ async function parseImportFile(file) {
   return { payload, isNewer: isPayloadNewer(payload, localPayload) };
 }
 
-export { getExportPayload, importDataFromObject, exportData, importData, isPayloadNewer, parseImportFile };
+export { getExportPayload, importDataFromObject, exportData, importData, isPayloadNewer, arePayloadsInSync, parseImportFile };

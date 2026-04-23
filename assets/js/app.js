@@ -1,10 +1,12 @@
 import { initDB } from '../../src/services/db.js';
 import { renderMain } from '../../src/pages/mainPage.js';
 import { openSettingsModal } from '../../src/components/settingsModal.js';
+import { renderAuditLogPage } from '../../src/components/auditLogPage.js';
 import { initGoogleAuth, getStoredToken, startAutoSync } from '../../src/services/driveService.js';
 import { loadPickerApi } from '../../src/services/pickerService.js';
 import { renderDriveSyncButton } from '../../src/components/driveSyncButton.js';
 import { getSettings } from '../../src/services/settingsService.js';
+import { migrateCategoryCreatedAt } from '../../src/services/categoryService.js';
 
 // ── Google API callbacks (must be on window; called by the async script tags) ──
 window.onGapiLoad = () => {
@@ -26,11 +28,17 @@ window.onGisLoad = async () => {
 async function bootstrap() {
   try {
     await initDB();
+    await migrateCategoryCreatedAt();
     await renderMain();
     await renderDriveSyncButton();
 
     document.getElementById('btn-settings').addEventListener('click', () => {
       openSettingsModal({ onSaved: () => renderMain() });
+    });
+
+    document.getElementById('btn-audit-log').addEventListener('click', () => {
+      const container = document.getElementById('app-main');
+      renderAuditLogPage(container, { onBack: () => renderMain() });
     });
 
     window.addEventListener('dindin:reload', () => renderMain());

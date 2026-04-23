@@ -20,6 +20,7 @@ function createCategory({ name, tags = [], recordType, idealValue = 0 }) {
     tags,
     recordType,
     idealValue,
+    createdAt: new Date().toISOString(),
   };
 }
 

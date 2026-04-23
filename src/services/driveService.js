@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from './settingsService.js';
-import { getExportPayload, importDataFromObject, isPayloadNewer } from './importExportService.js';
+import { getExportPayload, importDataFromObject, isPayloadNewer, arePayloadsInSync } from './importExportService.js';
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 // Credentials are provided by the user at first-sync and stored in localStorage.
@@ -240,8 +240,11 @@ async function syncWithDrive({ silent = true } = {}) {
   if (isPayloadNewer(drivePayload, localPayload)) {
     // 3a. Auto-import: Drive has newer data
     await _applyDrivePayload(drivePayload);
+  } else if (arePayloadsInSync(drivePayload, localPayload)) {
+    // 3b. Data is identical — nothing to do
+    return;
   } else {
-    // 3b. Drive data is older or equal — ask for confirmation
+    // 3c. Drive data is strictly older — ask for confirmation
     window.dispatchEvent(new CustomEvent('dindin:sync-confirmation-needed', { detail: { payload: drivePayload } }));
   }
 }
