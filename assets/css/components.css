@@ -318,6 +318,19 @@
 }
 
 /* ─── History list ────────────────────────────────── */
+.history-year-section {
+  margin-bottom: var(--spacing-md);
+}
+
+.history-year-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted, #888);
+  margin-bottom: var(--spacing-xs);
+}
+
 .history-month-list {
   list-style: none;
   display: flex;

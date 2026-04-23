@@ -1,5 +1,5 @@
-import { listPastMonths, formatMonthLabel } from '../utils/dateUtils.js';
-import { getRecordsByMonth } from '../services/recordService.js';
+import { formatMonthLabel } from '../utils/dateUtils.js';
+import { getRecordsByMonth, getAllMonthsWithRecords } from '../services/recordService.js';
 import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
 import { renderGeneralBalance } from './generalBalance.js';
 import { openCategoryDetailModal } from './categoryDetailModal.js';
@@ -12,13 +12,11 @@ import { openCategoryDetailModal } from './categoryDetailModal.js';
  * }} props
  */
 function openHistoryModal({ categories, settings }) {
-  const { currentMonth, period } = settings;
+  const { currentMonth } = settings;
   if (!currentMonth) {
     alert('Nenhum mês registrado ainda.');
     return;
   }
-
-  const pastMonths = listPastMonths(currentMonth, period);
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -45,25 +43,48 @@ function openHistoryModal({ categories, settings }) {
 
   const body = overlay.querySelector('#history-body');
 
-  function showMonthList() {
+  async function showMonthList() {
     body.innerHTML = '';
-    if (pastMonths.length === 0) {
-      body.innerHTML = '<p class="text-muted">Nenhum mês anterior registrado.</p>';
+    const allMonths = await getAllMonthsWithRecords();
+    const months = allMonths.filter((m) => m !== currentMonth).reverse();
+
+    if (months.length === 0) {
+      body.innerHTML = '<p class="text-muted">Nenhum lançamento registrado ainda.</p>';
       return;
     }
-    const ul = document.createElement('ul');
-    ul.className = 'history-month-list';
-    pastMonths.forEach((m) => {
-      const li = document.createElement('li');
-      li.className = 'history-month-item';
-      const btn = document.createElement('button');
-      btn.className = 'btn btn--secondary history-month-btn';
-      btn.textContent = capitalize(formatMonthLabel(m));
-      btn.addEventListener('click', () => showMonthBalance(m));
-      li.appendChild(btn);
-      ul.appendChild(li);
+
+    // Group by year
+    const byYear = new Map();
+    months.forEach((m) => {
+      const year = m.slice(0, 4);
+      if (!byYear.has(year)) byYear.set(year, []);
+      byYear.get(year).push(m);
     });
-    body.appendChild(ul);
+
+    byYear.forEach((yearMonths, year) => {
+      const section = document.createElement('div');
+      section.className = 'history-year-section';
+
+      const heading = document.createElement('h3');
+      heading.className = 'history-year-heading';
+      heading.textContent = year;
+      section.appendChild(heading);
+
+      const ul = document.createElement('ul');
+      ul.className = 'history-month-list';
+      yearMonths.forEach((m) => {
+        const li = document.createElement('li');
+        li.className = 'history-month-item';
+        const btn = document.createElement('button');
+        btn.className = 'btn btn--secondary history-month-btn';
+        btn.textContent = capitalize(formatMonthLabel(m));
+        btn.addEventListener('click', () => showMonthBalance(m));
+        li.appendChild(btn);
+        ul.appendChild(li);
+      });
+      section.appendChild(ul);
+      body.appendChild(section);
+    });
   }
 
   async function showMonthBalance(month) {
@@ -105,6 +126,7 @@ function openHistoryModal({ categories, settings }) {
 
   showMonthList();
 }
+
 
 function capitalize(str) {
   if (!str) return '';

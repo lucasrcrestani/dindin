@@ -31,6 +31,25 @@ async function deleteRecordsByCategory(categoryId) {
   await Promise.all(records.map((r) => promisify(store.delete(r.id))));
 }
 
+/** Returns all distinct month keys (YYYY-MM) that have at least one record, sorted ascending. */
+function getAllMonthsWithRecords() {
+  return new Promise((resolve, reject) => {
+    const index = getStore(STORES.RECORDS).index('month');
+    const months = [];
+    const request = index.openKeyCursor(null, 'nextunique');
+    request.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        months.push(cursor.key);
+        cursor.continue();
+      } else {
+        resolve(months);
+      }
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export {
   getAllRecords,
   getRecordsByMonth,
@@ -38,4 +57,5 @@ export {
   saveRecord,
   deleteRecord,
   deleteRecordsByCategory,
+  getAllMonthsWithRecords,
 };
