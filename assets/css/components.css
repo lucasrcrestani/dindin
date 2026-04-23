@@ -202,6 +202,12 @@
   color: var(--color-text-muted);
 }
 
+.category-card__average {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
 .badge--green,
 .badge--yellow,
 .badge--red {

@@ -3,8 +3,11 @@ import { computeCategoryBalances, computeGeneralBalance } from '../utils/balance
 import { createCategoryCard } from './categoryCard.js';
 import RecordType from '../models/RecordType.js';
 
-function renderGeneralBalance(container, { categories, records, monthKey, onCategoryClick }) {
-  const categoryBalances = computeCategoryBalances(categories, records);
+function renderGeneralBalance(container, { categories, records, monthKey, categoryAverages, onCategoryClick }) {
+  const categoryBalances = computeCategoryBalances(categories, records).map((b) => ({
+    ...b,
+    historicalAverage: categoryAverages?.get(b.category.id) ?? null,
+  }));
   const general = computeGeneralBalance(categoryBalances);
 
   const expenseBalances = categoryBalances.filter((b) => b.category.recordType === RecordType.EXPENSE);

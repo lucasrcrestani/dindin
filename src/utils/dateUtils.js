@@ -59,4 +59,24 @@ function formatMonthLabel(monthKey) {
   return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 }
 
-export { currentMonthKey, formatMonthKey, incrementMonth, listPastMonths, decrementMonth, formatMonthLabel };
+/**
+ * Returns all month keys within the current period (fixed windows from January),
+ * from the period start up to and including currentMonth.
+ * Ex: period=3, currentMonth='2026-03' → ['2026-01', '2026-02', '2026-03']
+ * Ex: period=3, currentMonth='2026-04' → ['2026-04']
+ * @param {string} currentMonth - YYYY-MM
+ * @param {number} period - number of months per window
+ * @returns {string[]} ordered oldest → newest, inclusive of currentMonth
+ */
+function getPeriodMonths(currentMonth, period) {
+  const [year, month] = currentMonth.split('-').map(Number);
+  const periodIdx = Math.floor((month - 1) / period);
+  const periodStartMonth = periodIdx * period + 1;
+  const result = [];
+  for (let m = periodStartMonth; m <= month; m++) {
+    result.push(formatMonthKey(year, m));
+  }
+  return result;
+}
+
+export { currentMonthKey, formatMonthKey, incrementMonth, listPastMonths, decrementMonth, formatMonthLabel, getPeriodMonths };

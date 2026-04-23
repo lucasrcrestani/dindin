@@ -39,6 +39,7 @@ function getIncomeCategoryStatus(actual, idealValue) {
  * @property {number} actual
  * @property {number} idealValue
  * @property {BalanceStatus} status
+ * @property {number|null} historicalAverage
  */
 
 /**
@@ -84,4 +85,31 @@ function computeGeneralBalance(categoryBalances) {
   return { income, actualIncome, expenses, balance, status };
 }
 
-export { getCategoryStatus, getIncomeCategoryStatus, computeCategoryBalances, computeGeneralBalance };
+/**
+ * Compute the historical average per category across a set of period months.
+ * Divisor = number of months in which that specific category has at least one record.
+ * Returns null for categories with no records in any of the period months.
+ * @param {import('../models/Category.js').Category[]} categories
+ * @param {Map<string, import('../models/Record.js').Record[]>} recordsByMonth - monthKey → records
+ * @param {string[]} periodMonths - ordered list of YYYY-MM keys for the current period
+ * @returns {Map<string, number|null>} categoryId → average (or null)
+ */
+function computeHistoricalAverages(categories, recordsByMonth, periodMonths) {
+  const result = new Map();
+  for (const category of categories) {
+    let total = 0;
+    let monthsWithRecords = 0;
+    for (const monthKey of periodMonths) {
+      const records = recordsByMonth.get(monthKey) ?? [];
+      const categoryRecords = records.filter((r) => r.categoryId === category.id);
+      if (categoryRecords.length > 0) {
+        total += categoryRecords.reduce((sum, r) => sum + (parseFormula(r.value) ?? 0), 0);
+        monthsWithRecords++;
+      }
+    }
+    result.set(category.id, monthsWithRecords > 0 ? total / monthsWithRecords : null);
+  }
+  return result;
+}
+
+export { getCategoryStatus, getIncomeCategoryStatus, computeCategoryBalances, computeGeneralBalance, computeHistoricalAverages };

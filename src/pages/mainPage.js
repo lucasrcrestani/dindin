@@ -10,7 +10,8 @@ import { openCategoryModal } from '../components/addCategoryModal.js';
 import { openAddRecordModal } from '../components/addRecordModal.js';
 import { openHistoryModal } from '../components/historyModal.js';
 import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
-import { incrementMonth } from '../utils/dateUtils.js';
+import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
+import { computeHistoricalAverages } from '../utils/balanceUtils.js';
 
 const main = document.getElementById('app-main');
 
@@ -38,15 +39,27 @@ async function renderMain() {
     return;
   }
 
-  // Load records for current month
+  // Load records for current month and period months
   const monthKey = _settings.currentMonth ?? null;
-  const records = monthKey ? await getRecordsByMonth(monthKey) : [];
-  const commonRecordNames = (await getAllCommonRecordNames()).map((e) => e.name);
+  const periodMonths = monthKey ? getPeriodMonths(monthKey, _settings.period ?? 3) : [];
+  const [currentMonthRecords, ...pastRecordsArr] = await Promise.all([
+    monthKey ? getRecordsByMonth(monthKey) : Promise.resolve([]),
+    ...periodMonths.filter((m) => m !== monthKey).map((m) => getRecordsByMonth(m)),
+    getAllCommonRecordNames(),
+  ]);
+  const commonRecordNames = pastRecordsArr.pop().map((e) => e.name);
+  const records = currentMonthRecords;
+
+  const recordsByMonth = new Map();
+  recordsByMonth.set(monthKey, records);
+  periodMonths.filter((m) => m !== monthKey).forEach((m, i) => recordsByMonth.set(m, pastRecordsArr[i]));
+  const categoryAverages = computeHistoricalAverages(_categories, recordsByMonth, periodMonths);
 
   renderGeneralBalance(main, {
     categories: _categories,
     records,
     monthKey: monthKey ?? '',
+    categoryAverages,
     onCategoryClick: (balance) => openCategoryDetailModal({
       category: balance.category,
       month: monthKey,
