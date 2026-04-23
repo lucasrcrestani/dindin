@@ -112,4 +112,26 @@ function computeHistoricalAverages(categories, recordsByMonth, periodMonths) {
   return result;
 }
 
-export { getCategoryStatus, getIncomeCategoryStatus, computeCategoryBalances, computeGeneralBalance, computeHistoricalAverages };
+/**
+ * Compute per-category totals for each month in a list of past months.
+ * @param {import('../models/Category.js').Category[]} categories
+ * @param {Map<string, import('../models/Record.js').Record[]>} recordsByMonth - monthKey → records
+ * @param {string[]} months - ordered list of YYYY-MM keys (past months only)
+ * @returns {Map<string, {monthKey: string, total: number}[]>} categoryId → array ordered oldest→newest
+ */
+function computePerMonthCategoryTotals(categories, recordsByMonth, months) {
+  const result = new Map();
+  for (const category of categories) {
+    const monthTotals = months.map((monthKey) => {
+      const records = recordsByMonth.get(monthKey) ?? [];
+      const total = records
+        .filter((r) => r.categoryId === category.id)
+        .reduce((sum, r) => sum + (parseFormula(r.value) ?? 0), 0);
+      return { monthKey, total };
+    });
+    result.set(category.id, monthTotals);
+  }
+  return result;
+}
+
+export { getCategoryStatus, getIncomeCategoryStatus, computeCategoryBalances, computeGeneralBalance, computeHistoricalAverages, computePerMonthCategoryTotals };

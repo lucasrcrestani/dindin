@@ -11,7 +11,7 @@ import { openAddRecordModal } from '../components/addRecordModal.js';
 import { openHistoryModal } from '../components/historyModal.js';
 import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
 import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
-import { computeHistoricalAverages } from '../utils/balanceUtils.js';
+import { computeHistoricalAverages, computePerMonthCategoryTotals } from '../utils/balanceUtils.js';
 
 const main = document.getElementById('app-main');
 
@@ -54,12 +54,15 @@ async function renderMain() {
   recordsByMonth.set(monthKey, records);
   periodMonths.filter((m) => m !== monthKey).forEach((m, i) => recordsByMonth.set(m, pastRecordsArr[i]));
   const categoryAverages = computeHistoricalAverages(_categories, recordsByMonth, periodMonths);
+  const pastMonths = periodMonths.filter((m) => m !== monthKey);
+  const categoryMonthlyTotals = computePerMonthCategoryTotals(_categories, recordsByMonth, pastMonths);
 
   renderGeneralBalance(main, {
     categories: _categories,
     records,
     monthKey: monthKey ?? '',
     categoryAverages,
+    categoryMonthlyTotals,
     onCategoryClick: (balance) => openCategoryDetailModal({
       category: balance.category,
       month: monthKey,

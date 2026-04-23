@@ -39,4 +39,17 @@ function formatShortDate(dateStr) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-export { formatCurrency, formatMonthDisplay, capitalize, formatShortDate };
+/**
+ * Format a YYYY-MM key to a short month/year label.
+ * @param {string} monthKey
+ * @returns {string} e.g. "jan/26"
+ */
+function formatShortMonth(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const date = new Date(year, month - 1, 1);
+  const shortMonth = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  const shortYear = String(year).slice(-2);
+  return `${shortMonth}/${shortYear}`;
+}
+
+export { formatCurrency, formatMonthDisplay, capitalize, formatShortDate, formatShortMonth };

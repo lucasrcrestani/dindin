@@ -3,7 +3,7 @@ import { computeCategoryBalances, computeGeneralBalance } from '../utils/balance
 import { createCategoryCard } from './categoryCard.js';
 import RecordType from '../models/RecordType.js';
 
-function renderGeneralBalance(container, { categories, records, monthKey, categoryAverages, onCategoryClick }) {
+function renderGeneralBalance(container, { categories, records, monthKey, categoryAverages, categoryMonthlyTotals, onCategoryClick }) {
   const categoryBalances = computeCategoryBalances(categories, records).map((b) => ({
     ...b,
     historicalAverage: categoryAverages?.get(b.category.id) ?? null,
@@ -44,19 +44,43 @@ function renderGeneralBalance(container, { categories, records, monthKey, catego
   `;
 
   if (incomeBalances.length) {
-    wrapper.appendChild(buildSection('💰 Receitas', incomeBalances, onCategoryClick));
+    wrapper.appendChild(buildSection('💰 Receitas', incomeBalances, onCategoryClick, categoryMonthlyTotals));
   }
 
   if (bad.length) {
-    wrapper.appendChild(buildSection('🔴 Ultrapassados', bad, onCategoryClick));
+    wrapper.appendChild(buildSection('🔴 Ultrapassados', bad, onCategoryClick, categoryMonthlyTotals));
   }
 
   if (watchout.length) {
-    wrapper.appendChild(buildSection('🟡 Atenção', watchout, onCategoryClick));
+    wrapper.appendChild(buildSection('🟡 Atenção', watchout, onCategoryClick, categoryMonthlyTotals));
   }
 
   if (green.length) {
-    wrapper.appendChild(buildSection('🟢 No controle', green, onCategoryClick));
+    wrapper.appendChild(buildSection('🟢 No controle', green, onCategoryClick, categoryMonthlyTotals));
+  }
+
+  const hasAnyHistory = categoryMonthlyTotals &&
+    Array.from(categoryMonthlyTotals.values()).some((arr) => arr && arr.length > 0);
+
+  if (hasAnyHistory) {
+    const expandBar = document.createElement('div');
+    expandBar.className = 'balance-expand-bar';
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'balance-expand-bar__btn';
+    expandBtn.textContent = '▾ Expandir histórico';
+    expandBar.appendChild(expandBtn);
+    wrapper.insertBefore(expandBar, wrapper.querySelector('.balance-section') ?? wrapper.querySelector('.balance-bottom-bar'));
+
+    let isExpanded = false;
+    expandBtn.addEventListener('click', () => {
+      isExpanded = !isExpanded;
+      expandBtn.textContent = isExpanded ? '▴ Recolher histórico' : '▾ Expandir histórico';
+      wrapper.querySelectorAll('.category-card--has-history').forEach((card) => {
+        card.classList.toggle('category-card--expanded', isExpanded);
+        const btn = card.querySelector('.category-card__expand-btn');
+        if (btn) btn.textContent = isExpanded ? '▴' : '▾';
+      });
+    });
   }
 
   const bottomBar = document.createElement('div');
@@ -73,7 +97,7 @@ function renderGeneralBalance(container, { categories, records, monthKey, catego
   return wrapper;
 }
 
-function buildSection(title, balances, onCategoryClick) {
+function buildSection(title, balances, onCategoryClick, categoryMonthlyTotals) {
   const section = document.createElement('section');
   section.className = 'balance-section';
   const heading = document.createElement('h3');
@@ -81,7 +105,8 @@ function buildSection(title, balances, onCategoryClick) {
   heading.textContent = title;
   section.appendChild(heading);
   balances.forEach((b) => {
-    const card = createCategoryCard(b);
+    const monthlyHistory = categoryMonthlyTotals?.get(b.category.id) ?? null;
+    const card = createCategoryCard(b, monthlyHistory);
     if (onCategoryClick) {
       card.classList.add('category-card--clickable');
       card.addEventListener('click', () => onCategoryClick(b));
