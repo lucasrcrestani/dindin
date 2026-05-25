@@ -15,3 +15,5 @@ Thumbs.db
 /dist
 /build
 /public
+
+node_modules/
