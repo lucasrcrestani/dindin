@@ -11,7 +11,9 @@ async function getCategoryById(id) {
 }
 
 async function saveCategory(data) {
-  const category = data.id ? data : createCategory(data);
+  const category = data.id
+    ? { ...data, updatedAt: new Date().toISOString() }
+    : createCategory(data);
   await promisify(getStore(STORES.CATEGORIES, 'readwrite').put(category));
   return category;
 }
@@ -40,7 +42,7 @@ async function migrateCategoryCreatedAt() {
     } else {
       createdAt = new Date().toISOString();
     }
-    await promisify(getStore(STORES.CATEGORIES, 'readwrite').put({ ...cat, createdAt }));
+    await promisify(getStore(STORES.CATEGORIES, 'readwrite').put({ ...cat, createdAt, updatedAt: cat.updatedAt ?? createdAt }));
   }
 }
 

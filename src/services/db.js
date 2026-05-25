@@ -1,5 +1,5 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 const STORES = {
   CATEGORIES: 'categories',
@@ -17,13 +17,8 @@ function initDB() {
   // If we have a cached connection, validate it has all required stores.
   // A stale v1 connection (e.g. from a module hot-reload) would be missing AUDIT_LOG.
   if (db) {
-    const tx = db.transaction(STORES.RECORDS, 'readonly');
-    const hasNewIndex = tx.objectStore(STORES.RECORDS).indexNames.contains('installmentGroupId');
-    tx.abort();
-    if (db.objectStoreNames.contains(STORES.AUDIT_LOG) && hasNewIndex) {
-      return Promise.resolve(db);
-    }
-    // Stale connection — close it and fall through to open a fresh one.
+    if (db.version === DB_VERSION) return Promise.resolve(db);
+    // Stale connection at an older version — close and re-open so onupgradeneeded fires.
     db.close();
     db = null;
   }
@@ -65,6 +60,23 @@ function initDB() {
         if (!recStore.indexNames.contains('installmentGroupId')) {
           recStore.createIndex('installmentGroupId', 'installmentGroupId', { unique: false });
         }
+      }
+
+      // v5: backfill updatedAt = createdAt for entities that predate this field
+      if (event.oldVersion < 5) {
+        const upgradeTx = event.target.transaction;
+        const now = new Date().toISOString();
+        [STORES.RECORDS, STORES.CATEGORIES, STORES.COMMON_RECORD_NAMES].forEach((storeName) => {
+          const store = upgradeTx.objectStore(storeName);
+          store.openCursor().onsuccess = function handleCursor(e) {
+            const cursor = e.target.result;
+            if (!cursor) return;
+            if (!cursor.value.updatedAt) {
+              cursor.update({ ...cursor.value, updatedAt: cursor.value.createdAt ?? now });
+            }
+            cursor.continue();
+          };
+        });
       }
     };
 

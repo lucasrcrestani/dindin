@@ -18,7 +18,9 @@ async function getRecordsByCategory(categoryId) {
 }
 
 async function saveRecord(data) {
-  const record = data.id ? data : createRecord(data);
+  const record = data.id
+    ? { ...data, updatedAt: new Date().toISOString() }
+    : createRecord(data);
   await promisify(getStore(STORES.RECORDS, 'readwrite').put(record));
   return record;
 }

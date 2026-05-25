@@ -57,7 +57,16 @@ async function importData(file) {
   await importDataFromObject(payload);
 }
 
-/** Returns the maximum createdAt ISO string among all records, or null. */
+/** Returns the maximum updatedAt (falling back to createdAt) ISO string among all records, or null. */
+function _getMaxTimestamp(records = []) {
+  if (!records.length) return null;
+  return records.reduce((max, r) => {
+    const ts = r.updatedAt ?? r.createdAt ?? '';
+    return ts > max ? ts : max;
+  }, '');
+}
+
+/** @deprecated Use _getMaxTimestamp instead. Kept for backward compatibility. */
 function _getMaxCreatedAt(records = []) {
   if (!records.length) return null;
   return records.reduce((max, r) => (r.createdAt > max ? r.createdAt : max), records[0].createdAt);
@@ -65,22 +74,30 @@ function _getMaxCreatedAt(records = []) {
 
 /**
  * Returns true if the incoming payload has records newer than the local payload.
- * Comparison is based on the maximum `createdAt` value across all records.
+ * Comparison uses the maximum `updatedAt` (falling back to `createdAt`) across all records.
  */
 function isPayloadNewer(incomingPayload, localPayload) {
-  const incomingMax = _getMaxCreatedAt(incomingPayload.records ?? []);
-  const localMax    = _getMaxCreatedAt(localPayload.records ?? []);
+  const incomingMax = _getMaxTimestamp(incomingPayload.records ?? []);
+  const localMax    = _getMaxTimestamp(localPayload.records ?? []);
   if (!incomingMax) return false;
   if (!localMax)    return true;
   return incomingMax > localMax;
 }
 
 /**
- * Returns true if both payloads share the same maximum createdAt timestamp,
- * meaning neither has records newer than the other.
+ * Returns true if both payloads share the same maximum timestamp,
+ * meaning neither has data newer than the other.
  */
 function arePayloadsInSync(payloadA, payloadB) {
-  return _getMaxCreatedAt(payloadA.records ?? []) === _getMaxCreatedAt(payloadB.records ?? []);
+  return _getMaxTimestamp(payloadA.records ?? []) === _getMaxTimestamp(payloadB.records ?? []);
+}
+
+/**
+ * Returns the maximum updatedAt/createdAt timestamp string across all records in a payload,
+ * or null if the payload has no records. Used for logging sync decisions.
+ */
+function getPayloadTimestamp(payload) {
+  return _getMaxTimestamp(payload.records ?? []);
 }
 
 /**
@@ -99,4 +116,4 @@ async function parseImportFile(file) {
   return { payload, isNewer: isPayloadNewer(payload, localPayload) };
 }
 
-export { getExportPayload, importDataFromObject, exportData, importData, isPayloadNewer, arePayloadsInSync, parseImportFile };
+export { getExportPayload, importDataFromObject, exportData, importData, isPayloadNewer, arePayloadsInSync, getPayloadTimestamp, parseImportFile };

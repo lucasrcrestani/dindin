@@ -14,15 +14,17 @@ import { generateId } from '../utils/idUtils.js';
  * @property {number|null} installmentNumber  - 1-based index of this installment
  * @property {number|null} installmentTotal   - total number of installments in the group
  * @property {string} createdAt   - ISO string
+ * @property {string} updatedAt   - ISO string, updated on every save
  */
 
 /**
- * @param {Omit<Record, 'id' | 'createdAt' | 'month'>} data
+ * @param {Omit<Record, 'id' | 'createdAt' | 'updatedAt' | 'month'>} data
  * @returns {Record}
  */
 function createRecord({ categoryId, value, name, date, isRecurring, isInstallment, installmentGroupId, installmentNumber, installmentTotal }) {
   const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
   const month = resolvedDate.slice(0, 7); // YYYY-MM
+  const now = new Date().toISOString();
   return {
     id: generateId(),
     categoryId,
@@ -35,7 +37,8 @@ function createRecord({ categoryId, value, name, date, isRecurring, isInstallmen
     installmentGroupId: installmentGroupId ?? null,
     installmentNumber: installmentNumber ?? null,
     installmentTotal: installmentTotal ?? null,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 

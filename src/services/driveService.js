@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from './settingsService.js';
-import { getExportPayload, importDataFromObject, isPayloadNewer, arePayloadsInSync } from './importExportService.js';
+import { getExportPayload, importDataFromObject, isPayloadNewer, arePayloadsInSync, getPayloadTimestamp } from './importExportService.js';
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 // Credentials are provided by the user at first-sync and stored in localStorage.
@@ -40,6 +40,7 @@ function clearCredentials() {
 // ── Internal state ────────────────────────────────────────────────────────────
 let _tokenClient       = null;
 let _autoSyncTimer     = null;
+let _syncInProgress    = false;
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 function _saveToken(response) {
@@ -121,6 +122,7 @@ async function _getValidToken({ silent = false } = {}) {
   const stored = getStoredToken();
   if (stored) return stored;
   if (silent) {
+    console.warn('[DriveSync] Token expirado durante sync automático — intervenção do usuário necessária');
     window.dispatchEvent(new CustomEvent('dindin:drive-auth-needed'));
     throw new Error('Token expirado. Clique no botão de sincronização para reconectar.');
   }
@@ -212,62 +214,95 @@ async function createFile(name, payload) {
 
 // ── Sync logic ────────────────────────────────────────────────────────────────
 /**
- * Pull-only sync:
- *   1. Download Drive file
- *   2. Compare freshness via max createdAt across records
- *   3a. If Drive is newer → overwrite local DB automatically
- *   3b. If Drive is older/equal → dispatch dindin:sync-confirmation-needed for user to decide
+ * Bidirectional sync with full-replacement strategy:
+ *   - If Drive data is newer → overwrite local DB with Drive data
+ *   - If local data is newer → push local data to Drive
+ *   - If in sync → only update lastSyncedAt
+ *
+ * Freshness is determined by the maximum updatedAt (falling back to createdAt)
+ * across all records in each payload.
  *
  * @param {object} opts
  * @param {boolean} opts.silent - Pass true for background auto-sync (no popup on token expiry).
  */
 async function syncWithDrive({ silent = true } = {}) {
-  const settings = await getSettings();
-  if (!settings.driveConnected || !settings.driveFileId) return;
+  if (_syncInProgress) {
+    console.log('[DriveSync] Sync ignorado — outro sync já está em andamento');
+    return;
+  }
+  _syncInProgress = true;
+  const startedAt = new Date().toISOString();
+  console.log(`[DriveSync] Sync iniciado em ${startedAt}`);
 
-  // 1. Download
-  let drivePayload = {};
   try {
-    drivePayload = await downloadFile(settings.driveFileId, { silent });
-  } catch (err) {
-    if (!err.message.includes('404')) throw err;
-    // File was deleted from Drive — nothing to import
-    return;
-  }
+    const settings = await getSettings();
+    if (!settings.driveConnected || !settings.driveFileId) {
+      console.log('[DriveSync] Sync ignorado — Drive não conectado ou sem fileId');
+      return;
+    }
 
-  // 2. Check freshness
-  const localPayload = await getExportPayload();
-  if (isPayloadNewer(drivePayload, localPayload)) {
-    // 3a. Auto-import: Drive has newer data
-    await _applyDrivePayload(drivePayload);
-  } else if (arePayloadsInSync(drivePayload, localPayload)) {
-    // 3b. Data is identical — nothing to do
-    return;
-  } else {
-    // 3c. Drive data is strictly older — ask for confirmation
-    window.dispatchEvent(new CustomEvent('dindin:sync-confirmation-needed', { detail: { payload: drivePayload } }));
+    // 1. Download Drive file
+    let drivePayload;
+    try {
+      drivePayload = await downloadFile(settings.driveFileId, { silent });
+      console.log('[DriveSync] Arquivo do Drive baixado com sucesso');
+    } catch (err) {
+      if (err.message.includes('404')) {
+        console.warn('[DriveSync] Arquivo do Drive não encontrado (404) — foi deletado externamente?');
+        window.dispatchEvent(new CustomEvent('dindin:drive-sync-error', {
+          detail: { message: 'Arquivo do Drive não encontrado. Reconecte nas configurações.' },
+        }));
+        return;
+      }
+      throw err;
+    }
+
+    // 2. Compare freshness
+    const localPayload = await getExportPayload();
+    const driveTs = getPayloadTimestamp(drivePayload);
+    const localTs = getPayloadTimestamp(localPayload);
+    console.log(`[DriveSync] Timestamp Drive: ${driveTs ?? 'nenhum'} | Timestamp local: ${localTs ?? 'nenhum'}`);
+
+    const now = new Date().toISOString();
+
+    if (isPayloadNewer(drivePayload, localPayload)) {
+      // 3a. Drive is newer → overwrite local
+      console.log('[DriveSync] Decisão: Drive é mais novo → substituindo dados locais');
+      await importDataFromObject(drivePayload);
+      const fresh = await getSettings();
+      await saveSettings({ ...fresh, lastSyncedAt: now });
+      console.log('[DriveSync] Dados locais substituídos com sucesso');
+      window.dispatchEvent(new CustomEvent('dindin:drive-synced', { detail: { lastSyncedAt: now } }));
+      window.dispatchEvent(new CustomEvent('dindin:reload'));
+    } else if (isPayloadNewer(localPayload, drivePayload)) {
+      // 3b. Local is newer → push to Drive
+      console.log('[DriveSync] Decisão: local é mais novo → enviando dados ao Drive');
+      await uploadFile(settings.driveFileId, settings.driveFileName, localPayload, { silent });
+      const fresh = await getSettings();
+      await saveSettings({ ...fresh, lastSyncedAt: now });
+      console.log('[DriveSync] Dados enviados ao Drive com sucesso');
+      window.dispatchEvent(new CustomEvent('dindin:drive-synced', { detail: { lastSyncedAt: now } }));
+    } else {
+      // 3c. In sync — just refresh lastSyncedAt
+      console.log('[DriveSync] Decisão: dados em sincronia — nenhuma alteração necessária');
+      const fresh = await getSettings();
+      await saveSettings({ ...fresh, lastSyncedAt: now });
+      window.dispatchEvent(new CustomEvent('dindin:drive-synced', { detail: { lastSyncedAt: now } }));
+    }
+
+    console.log(`[DriveSync] Sync concluído em ${new Date().toISOString()}`);
+  } finally {
+    _syncInProgress = false;
   }
 }
 
 /**
- * Imports a Drive payload and updates lastSyncedAt.
- * Used internally and by confirmImportFromDrive.
+ * @deprecated The new syncWithDrive() handles all cases automatically via full-replacement.
+ * Kept for backward compatibility with UI event listeners.
  */
-async function _applyDrivePayload(payload) {
-  await importDataFromObject(payload);
-  const now = new Date().toISOString();
-  const fresh = await getSettings();
-  await saveSettings({ ...fresh, lastSyncedAt: now });
-  window.dispatchEvent(new CustomEvent('dindin:drive-synced', { detail: { lastSyncedAt: now } }));
-  window.dispatchEvent(new CustomEvent('dindin:reload'));
-}
-
-/**
- * Imports a Drive payload that was previously deferred for user confirmation.
- * Call this after the user confirms overwriting local data with older/same Drive data.
- */
-async function confirmImportFromDrive(payload) {
-  await _applyDrivePayload(payload);
+async function confirmImportFromDrive(_payload) {
+  console.warn('[DriveSync] confirmImportFromDrive está deprecado — use syncWithDrive() diretamente');
+  await syncWithDrive({ silent: false });
 }
 
 /** Starts the 60-second auto-sync interval. Replaces any existing interval. */
@@ -301,6 +336,7 @@ export {
   signIn,
   signOut,
   downloadFile,
+  uploadFile,
   createFile,
   syncWithDrive,
   confirmImportFromDrive,
