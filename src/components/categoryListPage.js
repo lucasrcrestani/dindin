@@ -11,6 +11,11 @@ import RecordType from '../models/RecordType.js';
 async function renderCategoryListPage(container, { onBack, onChanged }) {
   const categories = await getAllCategories();
 
+  console.group('[Category List Page]');
+  console.log('Total categories:', categories.length);
+  categories.forEach((c) => console.log(`  ${c.name} | ${c.recordType} | R$ ${c.idealValue.toFixed(2)} | tags: [${(c.tags ?? []).join(', ')}]`));
+  console.groupEnd();
+
   container.innerHTML = `
     <div class="page-header">
       <button class="btn btn--secondary" id="btn-cat-back">← Voltar</button>
@@ -40,7 +45,7 @@ async function renderCategoryListPage(container, { onBack, onChanged }) {
       <div class="category-list-item__info">
         <span class="category-list-item__name">${escapeHtml(cat.name)}</span>
         <span class="category-list-item__meta">${typeLabel} · R$ ${cat.idealValue.toFixed(2)}</span>
-        ${cat.tags?.length ? `<span class="category-list-item__tags">${cat.tags.map(escapeHtml).join(', ')}</span>` : ''}
+        ${cat.tags?.length ? `<span class="category-list-item__tags">${cat.tags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('')}</span>` : ''}
       </div>
       <div class="category-list-item__actions">
         <button class="btn btn--secondary btn--sm" data-action="edit">Editar</button>
@@ -49,6 +54,7 @@ async function renderCategoryListPage(container, { onBack, onChanged }) {
     `;
 
     li.querySelector('[data-action="edit"]').addEventListener('click', () => {
+      console.log('[Category List Page] Opening edit for category:', cat.name, '|', cat.id);
       openCategoryModal({
         initial: cat,
         onSaved: async () => {
@@ -60,6 +66,7 @@ async function renderCategoryListPage(container, { onBack, onChanged }) {
 
     li.querySelector('[data-action="delete"]').addEventListener('click', async () => {
       if (!confirm(`Excluir a categoria "${cat.name}" e todos os seus registros?`)) return;
+      console.log('[Category List Page] Deleting category:', cat.name, '|', cat.id);
       await deleteRecordsByCategory(cat.id);
       await deleteCategory(cat.id);
       onChanged();

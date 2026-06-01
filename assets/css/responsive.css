@@ -63,4 +63,9 @@
     bottom: var(--spacing-lg);
     right: var(--spacing-md);
   }
+
+  .bulk-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }

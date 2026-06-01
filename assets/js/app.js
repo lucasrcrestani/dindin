@@ -42,6 +42,7 @@ async function bootstrap() {
     });
 
     window.addEventListener('dindin:reload', () => renderMain());
+    console.log('[Bootstrap] DinDin inicializado com sucesso');
   } catch (err) {
     console.error('Erro ao inicializar o DinDin:', err);
     document.getElementById('app-main').innerHTML = `

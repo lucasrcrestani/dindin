@@ -27,7 +27,7 @@ function createCategoryCard(balance, monthlyHistory) {
   card.innerHTML = `
     <div class="category-card__info">
       <span class="category-card__name">${escapeHtml(category.name)}</span>
-      <span class="category-card__tags">${(category.tags ?? []).map(escapeHtml).join(', ')}</span>
+      <span class="category-card__tags">${(category.tags ?? []).map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('')}</span>
     </div>
     <div class="category-card__values">
       <span class="category-card__actual status--${status}">${formatCurrency(actual)}</span>

@@ -22,6 +22,7 @@ async function saveRecord(data) {
     ? { ...data, updatedAt: new Date().toISOString() }
     : createRecord(data);
   await promisify(getStore(STORES.RECORDS, 'readwrite').put(record));
+  console.log('[Record] Registro salvo:', record.name, `(id: ${record.id}, type: ${record.isRecurring ? 'recurring' : record.isInstallment ? 'installment' : 'simple'})`);
   return record;
 }
 
@@ -56,7 +57,7 @@ async function getInstallmentsByGroupId(groupId) {
 
 /**
  * Creates N installment records starting from the given date, one per month.
- * @param {{ categoryId: string, value: string, name: string, date: string }} data
+ * @param {{ categoryId: string, value: string, name: string, date: string, registeredInCurrentMonth?: boolean, currentMonthOverride?: string }} data
  * @param {number} installmentCount
  * @returns {Promise<object[]>} the created records
  */
@@ -68,11 +69,13 @@ async function saveInstallmentGroup(data, installmentCount) {
 
   for (let i = 0; i < installmentCount; i++) {
     const date = `${currentMonth}-${day}`;
+    const isFirstAndOverridden = i === 0 && data.registeredInCurrentMonth && data.currentMonthOverride;
     const record = createRecord({
       categoryId: data.categoryId,
       value: data.value,
       name: data.name,
       date,
+      ...(isFirstAndOverridden ? { month: data.currentMonthOverride, registeredInCurrentMonth: true } : {}),
       isRecurring: false,
       isInstallment: true,
       installmentGroupId: groupId,

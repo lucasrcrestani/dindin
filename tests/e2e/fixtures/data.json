@@ -1,0 +1,64 @@
+{
+  "categories": [
+    {
+      "id": "cat-expense-001",
+      "name": "Alimentação",
+      "recordType": "expense",
+      "idealValue": 500,
+      "tags": [],
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cat-income-001",
+      "name": "Salário",
+      "recordType": "income",
+      "idealValue": 5000,
+      "tags": [],
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "records": [
+    {
+      "id": "rec-expense-001",
+      "categoryId": "cat-expense-001",
+      "name": "Supermercado Extra",
+      "value": "150",
+      "date": "2026-05-10",
+      "month": "2026-05",
+      "isRecurring": false,
+      "isInstallment": false,
+      "installmentGroupId": null,
+      "installmentNumber": null,
+      "installmentTotal": null,
+      "registeredInCurrentMonth": false,
+      "createdAt": "2026-05-10T10:00:00.000Z",
+      "updatedAt": "2026-05-10T10:00:00.000Z"
+    },
+    {
+      "id": "rec-income-001",
+      "categoryId": "cat-income-001",
+      "name": "Pagamento mensal",
+      "value": "3500",
+      "date": "2026-05-05",
+      "month": "2026-05",
+      "isRecurring": true,
+      "isInstallment": false,
+      "installmentGroupId": null,
+      "installmentNumber": null,
+      "installmentTotal": null,
+      "registeredInCurrentMonth": false,
+      "createdAt": "2026-05-05T09:00:00.000Z",
+      "updatedAt": "2026-05-05T09:00:00.000Z"
+    }
+  ],
+  "settings": {
+    "id": "main",
+    "currentMonth": "2026-05",
+    "period": 3,
+    "driveConnected": false,
+    "driveFileId": null
+  },
+  "commonRecordNames": []
+}

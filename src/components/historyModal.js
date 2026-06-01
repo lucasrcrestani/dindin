@@ -88,6 +88,7 @@ function openHistoryModal({ categories, settings }) {
   }
 
   async function showMonthBalance(month) {
+    console.log('[History Modal] Viewing month:', month);
     const [records, commonRecordNameEntries] = await Promise.all([
       getRecordsByMonth(month),
       getAllCommonRecordNames(),

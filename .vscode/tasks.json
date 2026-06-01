@@ -1,0 +1,23 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Vitest",
+			"type": "shell",
+			"command": "npx vitest run",
+			"group": "test"
+		},
+		{
+			"label": "Run Vitest CMD",
+			"type": "shell",
+			"command": "cmd /c npx vitest run",
+			"group": "test"
+		},
+		{
+			"label": "Run Vitest PS",
+			"type": "shell",
+			"command": "powershell -Command \"npx vitest run\"",
+			"group": "test"
+		}
+	]
+}

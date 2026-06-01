@@ -44,6 +44,7 @@ async function exportData() {
   anchor.download = `dindin-${payload.settings?.currentMonth ?? 'backup'}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
+  console.log('[Export] JSON exportado:', anchor.download, `(${payload.records?.length ?? 0} registros, ${payload.categories?.length ?? 0} categorias)`);
 }
 
 async function importData(file) {
@@ -55,6 +56,7 @@ async function importData(file) {
     throw new Error('Arquivo JSON inválido.');
   }
   await importDataFromObject(payload);
+  console.log('[Import] Dados importados:', `(${payload.records?.length ?? 0} registros, ${payload.categories?.length ?? 0} categorias)`);
 }
 
 /** Returns the maximum updatedAt (falling back to createdAt) ISO string among all records, or null. */

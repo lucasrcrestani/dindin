@@ -100,6 +100,10 @@ html, body {
   width: 100%;
 }
 
+.main-content:has(.bulk-add-page) {
+  max-width: none;
+}
+
 /* ─── Utility buttons ─────────────────────────────── */
 .btn-icon {
   background: transparent;

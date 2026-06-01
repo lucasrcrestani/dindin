@@ -13,6 +13,7 @@ import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
 import { openRecurringConfirmModal } from '../components/recurringConfirmModal.js';
 import { renderRecurringRecordsCard } from '../components/recurringRecordsCard.js';
 import { renderInstallmentRecordsCard } from '../components/installmentRecordsCard.js';
+import { renderBulkAddPage } from '../components/bulkAddPage.js';
 import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
 import { computeHistoricalAverages, computePerMonthCategoryTotals } from '../utils/balanceUtils.js';
 import { createRecord } from '../models/Record.js';
@@ -31,6 +32,8 @@ async function loadData() {
 
 async function renderMain() {
   await loadData();
+
+  console.log('[Main Page] Rendering — month:', _settings?.currentMonth ?? '(none)', '| categories:', _categories.length);
 
   const hasCategories = _categories.length > 0;
   const hasMonth = !!_settings.currentMonth;
@@ -129,6 +132,7 @@ async function renderMain() {
 
     const currentMonth = _settings.currentMonth;
     const next = incrementMonth(currentMonth);
+    console.log('[Main Page] Closing month:', currentMonth, '→', next);
     const recurringRecords = await getRecurringRecordsByMonth(currentMonth);
 
     if (recurringRecords.length > 0) {
@@ -173,6 +177,7 @@ function showAddPopup(commonRecordNames) {
   overlay.innerHTML = `
     <div class="action-sheet" role="menu">
       <button class="action-sheet__item" id="popup-add-record">Novo Lançamento</button>
+      <button class="action-sheet__item" id="popup-bulk-add">Lançamentos em Massa</button>
       <button class="action-sheet__item" id="popup-add-category">Nova Categoria</button>
       <button class="action-sheet__item" id="popup-manage-categories">Gerenciar Categorias</button>
       <button class="action-sheet__item action-sheet__item--cancel" id="popup-cancel">Cancelar</button>
@@ -199,6 +204,17 @@ function showAddPopup(commonRecordNames) {
         if (updatedSettings) _settings = updatedSettings;
         await renderMain();
       },
+    });
+  });
+
+  overlay.querySelector('#popup-bulk-add').addEventListener('click', () => {
+    closePopup();
+    if (_fab) { _fab.destroy(); _fab = null; }
+    renderBulkAddPage(main, {
+      categories: _categories,
+      commonRecordNames,
+      settings: _settings,
+      onBack: () => renderMain(),
     });
   });
 

@@ -59,6 +59,11 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
       return a.createdAt.localeCompare(b.createdAt);
     });
 
+    console.group(`[Category Detail] ${category.name} — ${monthLabel}`);
+    console.log('Record count:', sorted.length);
+    sorted.forEach((rec) => console.log(`  ${rec.date} | ${rec.name} | ${formatCurrency(parseFormula(rec.value) ?? 0)}`));
+    console.groupEnd();
+
     if (sorted.length === 0) {
       listContainer.innerHTML = '<p class="record-list__empty">Nenhum lançamento neste mês.</p>';
       return;
@@ -70,15 +75,21 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
     sorted.forEach((rec) => {
       const li = document.createElement('li');
       li.className = 'record-list__item';
+      const effectiveTags = [...new Set([...(category.tags ?? []), ...(rec.tags ?? [])])];
+      const tagsHtml = effectiveTags.length
+        ? `<span class="record-list__tags">${effectiveTags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('')}</span>`
+        : '';
       li.innerHTML = `
         <span class="record-list__date">${formatDate(rec.date)}</span>
         <span class="record-list__name">${escapeHtml(rec.name)}</span>
         <span class="record-list__value">${formatCurrency(parseFormula(rec.value) ?? 0)}</span>
         <button class="btn btn--secondary btn--sm record-list__edit" aria-label="Editar lançamento">✏️</button>
         <button class="btn btn--danger btn--sm record-list__delete" aria-label="Excluir lançamento">✕</button>
+        ${tagsHtml}
       `;
 
       li.querySelector('.record-list__edit').addEventListener('click', () => {
+        console.log('[Category Detail] Opening edit for record:', rec.name, '|', rec.id);
         openAddRecordModal({
           categories: allCategories,
           commonRecordNames,
@@ -94,6 +105,7 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
 
       li.querySelector('.record-list__delete').addEventListener('click', async () => {
         if (!confirm(`Excluir "${rec.name}"?`)) return;
+        console.log('[Category Detail] Deleting record:', rec.name, '|', rec.id);
         await deleteRecord(rec.id);
         categoryRecords = categoryRecords.filter((r) => r.id !== rec.id);
         renderList();
@@ -116,6 +128,7 @@ function openCategoryDetailModal({ category, month, records, allCategories, comm
   }
 
   overlay.querySelector('#btn-detail-add').addEventListener('click', () => {
+    console.log('[Category Detail] Opening add record for category:', category.name);
     openAddRecordModal({
       categories: allCategories,
       commonRecordNames,

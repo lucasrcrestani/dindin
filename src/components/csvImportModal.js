@@ -127,7 +127,7 @@ function openCSVImportModal({ parsedData, existingCategories, hiddenMonths = [],
       return `
         <tr>
           <td>${escapeHtml(cat.name)}</td>
-          <td>${cat.tags.join(', ') || '—'}</td>
+          <td>${cat.tags.length ? cat.tags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('') : '—'}</td>
           <td>${formatCurrency(cat.idealValue)}</td>
           <td>
             <select data-cat-index="${i}" class="csv-import__select">
@@ -186,7 +186,7 @@ function openCSVImportModal({ parsedData, existingCategories, hiddenMonths = [],
         <tr>
           <td>${acaoHtml}</td>
           <td>${escapeHtml(cat.name)}</td>
-          <td>${cat.tags.join(', ') || '—'}</td>
+          <td>${cat.tags.length ? cat.tags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('') : '—'}</td>
           <td>${tipo}</td>
           <td>${formatCurrency(cat.idealValue)}</td>
           <td class="csv-import__records">${registros || '—'}</td>

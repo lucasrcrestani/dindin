@@ -15,6 +15,7 @@ async function saveCategory(data) {
     ? { ...data, updatedAt: new Date().toISOString() }
     : createCategory(data);
   await promisify(getStore(STORES.CATEGORIES, 'readwrite').put(category));
+  console.log('[Category] Categoria salva:', category.name, `(id: ${category.id})`);
   return category;
 }
 
