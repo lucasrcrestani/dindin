@@ -140,7 +140,7 @@ Used for both creating and editing a record. Title changes to "Editar Lançament
 | Name/place | Nome / Local | Text input with autocomplete from `CommonRecordsName`. |
 | Date | Data | Date picker; defaults to today. |
 | Value | Valor | Accepts a formula string (e.g. `50+7`, `120/3`). Both `.` and `,` are valid decimal separators. Evaluated via `parseFormula()` before saving. |
-| Tags | Tags | Tag input widget (same pattern as Category tags). Comma, Enter, or Tab separates tags. Backspace removes the last tag. Pre-filled when editing. Saved as `record.tags`. |
+| Tags | Tags | Tag input widget. Space, comma, Enter, or Tab separates tags. Backspace removes the last tag. When a category is selected, the field auto-fills that category's tags. Existing record tags are suggested as the user types. Pre-filled when editing. Saved as `record.tags`. |
 | Recurring | Recorrente | Checkbox. Mutually exclusive with Parcelado. |
 | Installment | Parcelado | Checkbox + number-of-installments input. Mutually exclusive with Recorrente. |
 
@@ -155,6 +155,7 @@ When Parcelado is checked, the user enters the total number of installments. On 
 ### On save
 
 * Formula is validated before saving; an error is shown if invalid.
+* At least one tag is required before saving.
 * Record name is added to `CommonRecordsName` (deduplicated case-insensitively).
 * If `currentMonth` is not yet set, it is set to the record's month.
 
@@ -305,6 +306,7 @@ Full-page view (replaces the main view) for adding multiple records at once.
   * **Nome / Local** — text input with autocomplete from `CommonRecordNames`.
   * **Data** — date picker; defaults to today. Shows future-month warning and current-month suggestion checkbox inside the cell when applicable (same logic as the Record modal).
   * **Valor (R$)** — accepts a formula string (e.g. `50+7`).
+  * **Tags** — same tag widget as the Record modal. Space, comma, Enter, or Tab separates tags. Category tags auto-fill when a category is selected. Existing record tags are suggested as the user types.
   * **Recorrente** — checkbox; mutually exclusive with Parcelado.
   * **Parcelado** — checkbox; mutually exclusive with Recorrente.
   * **Parcelas** — number input; visible only when Parcelado is checked.
@@ -314,6 +316,7 @@ Full-page view (replaces the main view) for adding multiple records at once.
 * **+ Adicionar Registro** button — appends a new empty row at the bottom.
 * **Salvar Todos** — validates all rows before saving:
   * If any row is invalid, all errors are shown inline per row and saving is blocked until fixed.
+  * Each row must contain at least one tag.
   * If all rows are valid, records are saved sequentially using `saveRecord()` or `saveInstallmentGroup()` (for installment rows). Record names are added to `CommonRecordNames` after each save.
   * On success, navigates back to the main view.
 

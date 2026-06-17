@@ -58,7 +58,7 @@ Factory: `createRecord({ categoryId, value, name, date, month?, tags?, isRecurri
 | `name` | `string` | Place or description of the transaction. |
 | `date` | `string` | Format `YYYY-MM-DD`; the actual date the transaction occurred. Defaults to today if omitted. |
 | `month` | `string` | Format `YYYY-MM`; derived from `date` by default (`date.slice(0,7)`). May differ from `date` when `registeredInCurrentMonth` is `true`. Indexed in IndexedDB for fast monthly queries. |
-| `tags` | `string[]` | Optional labels for the record. Combined with the parent category's tags for display and filtering. Defaults to `[]`. |
+| `tags` | `string[]` | Labels for the record. Combined with the parent category's tags for display and filtering. The UI requires at least one tag before saving a record. Defaults to `[]` at the model layer. |
 | `isRecurring` | `boolean` | When `true`, the record is automatically propagated to the next month when the user closes the current month. |
 | `isInstallment` | `boolean` | When `true`, the record belongs to an installment group (parcelado). |
 | `installmentGroupId` | `string\|null` | Shared UUID across all records in the same installment purchase. |

@@ -1,4 +1,4 @@
-import { saveRecord, saveInstallmentGroup } from '../services/recordService.js';
+import { saveRecord, saveInstallmentGroup, getAllRecordTags } from '../services/recordService.js';
 import { addCommonRecordName } from '../services/commonRecordNameService.js';
 import { saveSettings } from '../services/settingsService.js';
 import RecordType from '../models/RecordType.js';
@@ -93,9 +93,13 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
           </div>
           <div class="form-group">
             <label>Tags</label>
-            <div class="tag-input" id="rec-tags-container">
-              <input id="rec-tags" type="text" placeholder="Adicionar tag..." class="tag-input__field" autocomplete="off" />
+            <div class="autocomplete-wrap">
+              <div class="tag-input" id="rec-tags-container">
+                <input id="rec-tags" type="text" placeholder="Adicionar tag..." class="tag-input__field" autocomplete="off" />
+              </div>
+              <ul class="autocomplete-list" id="rec-tags-list" style="display:none"></ul>
             </div>
+            <span id="rec-tags-error" class="form-error" style="display:none">Adicione ao menos uma tag.</span>
           </div>
           <div class="modal__footer">
             <button type="button" class="btn btn--secondary" id="btn-rec-cancel">Cancelar</button>
@@ -126,6 +130,9 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   const catHiddenInput = overlay.querySelector('#rec-category');
   const catList = overlay.querySelector('#rec-category-list');
 
+  // Tracks which tags were auto-filled from the currently selected category
+  let currentCategoryTags = [];
+
   const renderCategoryList = (query) => {
     catList.innerHTML = '';
     const q = query.toLowerCase().trim();
@@ -150,6 +157,18 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
           catSearchInput.value = cat.name;
           catHiddenInput.value = cat.id;
           catList.innerHTML = '';
+          // Sync category tags: remove old category tags, add new ones
+          const oldTags = currentCategoryTags;
+          const newTags = cat.tags || [];
+          oldTags.forEach(t => {
+            if (!newTags.includes(t)) {
+              const badge = tagsContainer.querySelector(`[data-tag="${CSS.escape(t)}"]`);
+              if (badge) badge.remove();
+            }
+          });
+          newTags.forEach(t => addTag(t));
+          currentCategoryTags = [...newTags];
+          console.log('[Add Record] Categoria selecionada:', cat.name, '| tags auto-preenchidas:', newTags);
         });
         catList.appendChild(li);
       });
@@ -287,6 +306,11 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   // ─── Tags ──────────────────────────────────────────────────────────────────
   const tagsContainer = overlay.querySelector('#rec-tags-container');
   const tagTextField = overlay.querySelector('#rec-tags');
+  const tagsList = overlay.querySelector('#rec-tags-list');
+
+  // All existing record tags for autocomplete — fetched async
+  let allRecordTags = [];
+  getAllRecordTags().then(tags => { allRecordTags = tags; });
 
   const addTag = (value) => {
     const tag = value.trim();
@@ -302,10 +326,33 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
     badge.querySelector('.tag-badge__remove').addEventListener('click', () => badge.remove());
     tagsContainer.insertBefore(badge, tagTextField);
     tagTextField.value = '';
+    tagsList.style.display = 'none';
+    tagsList.innerHTML = '';
+  };
+
+  const renderTagSuggestions = () => {
+    const q = tagTextField.value.trim().toLowerCase();
+    tagsList.innerHTML = '';
+    if (!q) { tagsList.style.display = 'none'; return; }
+    const existing = new Set([...tagsContainer.querySelectorAll('[data-tag]')].map(el => el.dataset.tag));
+    const matches = allRecordTags.filter(t => t.toLowerCase().includes(q) && !existing.has(t)).slice(0, 8);
+    if (matches.length === 0) { tagsList.style.display = 'none'; return; }
+    matches.forEach(t => {
+      const li = document.createElement('li');
+      li.className = 'autocomplete-item';
+      li.textContent = t;
+      li.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        addTag(t);
+        tagTextField.focus();
+      });
+      tagsList.appendChild(li);
+    });
+    tagsList.style.display = '';
   };
 
   tagTextField.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === ' ') {
       if (tagTextField.value.trim()) {
         e.preventDefault();
         addTag(tagTextField.value);
@@ -317,11 +364,19 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   });
 
   tagTextField.addEventListener('input', () => {
-    if (tagTextField.value.includes(',')) {
-      const parts = tagTextField.value.split(',');
-      parts.slice(0, -1).forEach(p => addTag(p));
-      tagTextField.value = parts[parts.length - 1].trimStart();
+    const val = tagTextField.value;
+    if (/[\s,]/.test(val)) {
+      const parts = val.split(/[\s,]+/);
+      const endsWithDelimiter = /[\s,]$/.test(val);
+      const completedParts = endsWithDelimiter ? parts.filter(Boolean) : parts.slice(0, -1).filter(Boolean);
+      completedParts.forEach((part) => addTag(part));
+      tagTextField.value = endsWithDelimiter ? '' : (parts[parts.length - 1] || '').trimStart();
     }
+    renderTagSuggestions();
+  });
+
+  tagTextField.addEventListener('blur', () => {
+    setTimeout(() => { tagsList.style.display = 'none'; tagsList.innerHTML = ''; }, 150);
   });
 
   tagsContainer.addEventListener('click', () => tagTextField.focus());
@@ -329,6 +384,18 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
   // Pre-fill tags when editing
   if (initial?.tags) {
     initial.tags.forEach(t => addTag(t));
+  }
+
+  // Auto-fill tags from the initially selected category (runs after addTag is defined)
+  {
+    const initialCatId = initial?.categoryId || preselectedCategoryId;
+    if (initialCatId) {
+      const cat = categories.find(c => c.id === initialCatId);
+      if (cat) {
+        currentCategoryTags = [...(cat.tags || [])];
+        currentCategoryTags.forEach(t => addTag(t));
+      }
+    }
   }
 
   // ─── Submit ────────────────────────────────────────────────────────────────
@@ -346,6 +413,7 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
 
     if (tagTextField.value.trim()) addTag(tagTextField.value);
     const tags = [...tagsContainer.querySelectorAll('[data-tag]')].map(el => el.dataset.tag);
+    const tagsError = overlay.querySelector('#rec-tags-error');
 
     const parsed = parseFormula(rawValue);
     if (parsed === null || isNaN(parsed)) {
@@ -360,6 +428,13 @@ function openAddRecordModal({ categories, commonRecordNames, settings, preselect
       return;
     }
     categoryError.style.display = 'none';
+
+    if (tags.length === 0) {
+      tagsError.style.display = '';
+      tagTextField.focus();
+      return;
+    }
+    tagsError.style.display = 'none';
 
     if (!name || !date) return;
 

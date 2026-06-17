@@ -30,7 +30,7 @@ async function openFabMenu(page, itemText) {
 // ---------------------------------------------------------------------------
 // Helper: fill and submit the "Novo Lançamento" record modal
 // ---------------------------------------------------------------------------
-async function fillRecordModal(page, { categoryName, name, date, value, tags = [], recurring = false, installment = false, installmentCount }) {
+async function fillRecordModal(page, { categoryName, name, date, value, tags = ['geral'], recurring = false, installment = false, installmentCount }) {
   // Select category via autocomplete
   await page.focus('#rec-category-search');
   await page.fill('#rec-category-search', categoryName);
@@ -148,6 +148,7 @@ test.describe('DinDin — E2E Feature Tests', () => {
       name: 'Supermercado Extra',
       date: '2026-05-15',
       value: '120',
+      tags: ['mercado'],
     });
 
     // Modal closes and page re-renders
@@ -178,6 +179,7 @@ test.describe('DinDin — E2E Feature Tests', () => {
       name: 'Pagamento mensal',
       date: '2026-05-05',
       value: '3500',
+      tags: ['salario'],
     });
 
     await page.waitForSelector('#modal-rec-title', { state: 'detached' });
@@ -204,6 +206,7 @@ test.describe('DinDin — E2E Feature Tests', () => {
       name: 'Aluguel',
       date: '2026-05-01',
       value: '1200',
+      tags: ['fixo'],
       recurring: true,
     });
 
@@ -233,6 +236,7 @@ test.describe('DinDin — E2E Feature Tests', () => {
       name: 'Televisão',
       date: '2026-05-10',
       value: '3600',
+      tags: ['eletronico'],
       installment: true,
       installmentCount: 12,
     });
@@ -322,6 +326,8 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await row.locator('.bulk-name').fill('Mercado do João');
     await row.locator('.bulk-date').fill('2026-05-20');
     await row.locator('.bulk-value').fill('75');
+    await row.locator('.bulk-tags-input').fill('feira,');
+    await expect(row.locator('.bulk-tags-container [data-tag="feira"]')).toBeVisible();
 
     // Add a second row
     await page.click('#btn-bulk-add-row');
@@ -335,6 +341,8 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await row2.locator('.bulk-name').fill('Padaria');
     await row2.locator('.bulk-date').fill('2026-05-21');
     await row2.locator('.bulk-value').fill('30');
+    await row2.locator('.bulk-tags-input').fill('cafe ');
+    await expect(row2.locator('.bulk-tags-container [data-tag="cafe"]')).toBeVisible();
 
     // Save all
     await page.click('#btn-bulk-save');
@@ -428,6 +436,62 @@ test.describe('DinDin — E2E Feature Tests', () => {
     // The record item should display the "essencial" (from category) and "viagem" (own) tags
     await expect(page.locator('.record-list__tags .tag-badge').filter({ hasText: 'essencial' })).toBeVisible();
     await expect(page.locator('.record-list__tags .tag-badge').filter({ hasText: 'viagem' })).toBeVisible();
+
+    assertNoErrors(logs);
+  });
+
+  test('record modal tags — auto-fill category tags, require tags, and suggest existing tags', async ({ page }) => {
+    const logs = collectLogs(page);
+
+    const seedWithTags = {
+      categories: [
+        { ...FIXTURE.categories[0], tags: ['essencial', 'mercado'] },
+        FIXTURE.categories[1],
+      ],
+      settings: FIXTURE.settings,
+      records: [
+        { ...FIXTURE.records[0], tags: ['viagem'] },
+      ],
+      commonRecordNames: [],
+    };
+
+    await seedDatabase(page, seedWithTags);
+    await waitForBootstrap(page);
+
+    await openFabMenu(page, 'Novo Lançamento');
+    await page.waitForSelector('#modal-rec-title', { state: 'visible' });
+
+    await page.fill('#rec-category-search', 'Salário');
+    await page.waitForSelector('#rec-category-list .autocomplete-item', { state: 'visible' });
+    await page.click('#rec-category-list .autocomplete-item');
+    await page.fill('#rec-name', 'Sem tag');
+    await page.fill('#rec-date', '2026-05-22');
+    await page.fill('#rec-value', '100');
+    await page.click('#form-record button[type="submit"]');
+    await expect(page.locator('#rec-tags-error')).toBeVisible();
+
+    await page.fill('#rec-category-search', 'Alimentação');
+    await page.waitForSelector('#rec-category-list .autocomplete-item', { state: 'visible' });
+    await page.click('#rec-category-list .autocomplete-item');
+    await expect(page.locator('#rec-tags-container [data-tag="essencial"]')).toBeVisible();
+    await expect(page.locator('#rec-tags-container [data-tag="mercado"]')).toBeVisible();
+
+    await page.fill('#rec-tags', 'delivery,');
+    await expect(page.locator('#rec-tags-container [data-tag="delivery"]')).toBeVisible();
+
+    await page.fill('#rec-tags', 'casa');
+    await page.press('#rec-tags', 'Space');
+    await expect(page.locator('#rec-tags-container [data-tag="casa"]')).toBeVisible();
+
+    await page.fill('#rec-tags', 'via');
+    await page.waitForSelector('#rec-tags-list .autocomplete-item', { state: 'visible' });
+    await page.click('#rec-tags-list .autocomplete-item');
+    await expect(page.locator('#rec-tags-container [data-tag="viagem"]')).toBeVisible();
+
+    await page.click('#form-record button[type="submit"]');
+    await page.waitForSelector('#modal-rec-title', { state: 'detached' });
+    expect(hasLog(logs, '[Add Record] Categoria selecionada: Alimentação')).toBe(true);
+    expect(hasLog(logs, '[Add Record] Record saved:')).toBe(true);
 
     assertNoErrors(logs);
   });

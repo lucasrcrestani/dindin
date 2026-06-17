@@ -43,6 +43,7 @@ Domain service for `Record` documents.
 | `getInstallmentsByMonth(month)` | `Promise<Record[]>` | Returns records for `month` where `isInstallment === true`. |
 | `getInstallmentsByGroupId(groupId)` | `Promise<Record[]>` | Returns all records in an installment group, sorted by `installmentNumber` ascending. |
 | `getAllMonthsWithRecords()` | `Promise<string[]>` | Returns a deduplicated sorted array of all `month` keys that have at least one record. |
+| `getAllRecordTags()` | `Promise<string[]>` | Returns all unique record tags across the DB, sorted ascending. Used by tag autocomplete in record forms. |
 | `saveRecord(data)` | `Promise<Record>` | **Create or update.** If `data.id` is present, updates `updatedAt` and persists. If no `id`, calls `createRecord(data)` to generate a new record. Returns the saved record. |
 | `deleteRecord(id)` | `Promise<void>` | Deletes the record with the given id. |
 | `deleteRecordsByCategory(categoryId)` | `Promise<void>` | Deletes all records belonging to a category. Used when deleting a category. |
@@ -58,6 +59,7 @@ Domain service for `Record` documents.
   value: string,
   name: string,
   date: string,            // YYYY-MM-DD (first installment date)
+  tags?: string[],
   registeredInCurrentMonth?: boolean,
   currentMonthOverride?: string,  // YYYY-MM (if registeredInCurrentMonth is true)
 }

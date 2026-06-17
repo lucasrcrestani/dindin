@@ -57,7 +57,7 @@ async function getInstallmentsByGroupId(groupId) {
 
 /**
  * Creates N installment records starting from the given date, one per month.
- * @param {{ categoryId: string, value: string, name: string, date: string, registeredInCurrentMonth?: boolean, currentMonthOverride?: string }} data
+ * @param {{ categoryId: string, value: string, name: string, date: string, tags?: string[], registeredInCurrentMonth?: boolean, currentMonthOverride?: string }} data
  * @param {number} installmentCount
  * @returns {Promise<object[]>} the created records
  */
@@ -75,6 +75,7 @@ async function saveInstallmentGroup(data, installmentCount) {
       value: data.value,
       name: data.name,
       date,
+      tags: data.tags,
       ...(isFirstAndOverridden ? { month: data.currentMonthOverride, registeredInCurrentMonth: true } : {}),
       isRecurring: false,
       isInstallment: true,
@@ -140,6 +141,13 @@ function getAllMonthsWithRecords() {
   });
 }
 
+async function getAllRecordTags() {
+  const records = await getAllRecords();
+  const tagSet = new Set();
+  records.forEach(r => (r.tags || []).forEach(t => tagSet.add(t)));
+  return [...tagSet].sort();
+}
+
 export {
   getAllRecords,
   getRecordsByMonth,
@@ -154,4 +162,5 @@ export {
   deleteRecord,
   deleteRecordsByCategory,
   getAllMonthsWithRecords,
+  getAllRecordTags,
 };

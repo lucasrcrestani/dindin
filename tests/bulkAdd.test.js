@@ -12,6 +12,7 @@ const VALID_DATA = {
   rawValue: '100',
   isInstallment: false,
   installmentCount: NaN,
+  tags: ['essencial'],
 };
 
 // ── Happy path ────────────────────────────────────────────────────────────────
@@ -127,11 +128,24 @@ describe('validateRowData() — multiple errors', () => {
       rawValue: '',
       isInstallment: false,
       installmentCount: NaN,
+      tags: [],
     });
     expect(errors.categoryId).toBeDefined();
     expect(errors.name).toBeDefined();
     expect(errors.date).toBeDefined();
     expect(errors.value).toBeDefined();
+  });
+});
+
+describe('validateRowData() — tags', () => {
+  it('returns tags error when there are no tags', () => {
+    const errors = validateRowData({ ...VALID_DATA, tags: [] });
+    expect(errors.tags).toBeDefined();
+  });
+
+  it('does not return tags error when at least one tag exists', () => {
+    const errors = validateRowData({ ...VALID_DATA, tags: ['mercado'] });
+    expect(errors.tags).toBeUndefined();
   });
 });
 
