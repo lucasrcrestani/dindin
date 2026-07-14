@@ -12,9 +12,79 @@ async function getRecordsByMonth(month) {
   return promisify(index.getAll(IDBKeyRange.only(month)));
 }
 
+/**
+ * Gets records by category ID, including records that share tags with the category
+ * and have the same record type (income/expense).
+ * 
+ * @param {string} categoryId - The category ID to search for
+ * @returns {Promise<Object[]>} Array of matching records
+ */
 async function getRecordsByCategory(categoryId) {
+  // First, get records directly by categoryId
   const index = getStore(STORES.RECORDS).index('categoryId');
-  return promisify(index.getAll(IDBKeyRange.only(categoryId)));
+  let directRecords = await promisify(index.getAll(IDBKeyRange.only(categoryId)));
+  
+  // Get the category to understand its tags and type
+  const categoryIndex = getStore(STORES.CATEGORIES);
+  const category = await promisify(categoryIndex.get(categoryId));
+  
+  if (!category) {
+    console.log('[Record] Categoria não encontrada para ID:', categoryId);
+    return directRecords;
+  }
+  
+  // Get all records to check for tag sharing
+  const allRecords = await getAllRecords();
+  
+  // Filter records that share tags with the category and have same record type
+  let tagSharedRecords = [];
+  if (category.tags && category.tags.length > 0) {
+    console.log('[Record] Buscando registros com tags compartilhadas para categoria:', categoryId);
+    
+    tagSharedRecords = allRecords.filter(record => {
+      // Must be of the same record type as the category
+      const isSameType = record.categoryId === categoryId || 
+                        (category.recordType && 
+                         ((record.isRecurring && category.recordType === 'income') || 
+                          (!record.isRecurring && category.recordType === 'expense')));
+      
+      if (!isSameType) {
+        return false;
+      }
+      
+      // Check if the record has at least all tags from the category
+      const recordTags = record.tags || [];
+      const categoryTags = category.tags || [];
+      
+      // If record doesn't have any of the category's tags, skip it
+      if (categoryTags.length === 0) {
+        return false;
+      }
+      
+      // Check if record has at least all tags from the category
+      const hasAllCategoryTags = categoryTags.every(tag => 
+        recordTags.includes(tag)
+      );
+      
+      // If we found records with shared tags, include them
+      return hasAllCategoryTags && record.categoryId !== categoryId;
+    });
+  }
+  
+  // Combine direct records and tag-shared records, removing duplicates
+  const combinedRecords = [...directRecords, ...tagSharedRecords];
+  const uniqueRecords = [];
+  const seenIds = new Set();
+  
+  for (const record of combinedRecords) {
+    if (!seenIds.has(record.id)) {
+      seenIds.add(record.id);
+      uniqueRecords.push(record);
+    }
+  }
+  
+  console.log('[Record] Registros encontrados por categoria e tags:', uniqueRecords.length, 'registros');
+  return uniqueRecords;
 }
 
 async function saveRecord(data) {
