@@ -1,22 +1,35 @@
 import { getStore, promisify, STORES } from './db.js';
 import { createCategory } from '../models/Category.js';
 import { getAllRecords } from './recordService.js';
+import { hydrateEntityTags, hydrateEntityTagsList, resolveInputTagIds } from './tagService.js';
 
-async function getAllCategories() {
+async function getAllRawCategories() {
   return promisify(getStore(STORES.CATEGORIES).getAll());
 }
 
-async function getCategoryById(id) {
+async function getAllCategories() {
+  const categories = await getAllRawCategories();
+  return hydrateEntityTagsList(categories);
+}
+
+async function getRawCategoryById(id) {
   return promisify(getStore(STORES.CATEGORIES).get(id));
 }
 
+async function getCategoryById(id) {
+  const category = await getRawCategoryById(id);
+  return hydrateEntityTags(category);
+}
+
 async function saveCategory(data) {
+  const tagIds = await resolveInputTagIds(data, true);
   const category = data.id
-    ? { ...data, updatedAt: new Date().toISOString() }
-    : createCategory(data);
+    ? { ...data, tagIds, updatedAt: new Date().toISOString() }
+    : createCategory({ ...data, tagIds });
+  delete category.tags;
   await promisify(getStore(STORES.CATEGORIES, 'readwrite').put(category));
   console.log('[Category] Categoria salva:', category.name, `(id: ${category.id})`);
-  return category;
+  return hydrateEntityTags(category);
 }
 
 async function deleteCategory(id) {
@@ -33,7 +46,7 @@ async function migrateCategoryCreatedAt() {
   if (!needsMigration.length) return;
 
   for (const cat of needsMigration) {
-    const catRecords = records.filter((r) => r.categoryId === cat.id);
+    const catRecords = records.filter((record) => (cat.tagIds ?? []).every((tagId) => (record.tagIds ?? []).includes(tagId)));
     let createdAt;
     if (catRecords.length) {
       createdAt = catRecords.reduce(
@@ -47,4 +60,12 @@ async function migrateCategoryCreatedAt() {
   }
 }
 
-export { getAllCategories, getCategoryById, saveCategory, deleteCategory, migrateCategoryCreatedAt };
+export {
+  getAllCategories,
+  getAllRawCategories,
+  getCategoryById,
+  getRawCategoryById,
+  saveCategory,
+  deleteCategory,
+  migrateCategoryCreatedAt,
+};

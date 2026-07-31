@@ -30,13 +30,13 @@ Enum string values. Defined in `src/models/RecordType.js`.
 
 Groups records by purpose (e.g. "Groceries", "Rent"). Defined in `src/models/Category.js`.
 
-Factory: `createCategory({ name, tags, recordType, idealValue })`
+Factory: `createCategory({ name, tagIds, recordType, idealValue })`
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `string` | Auto-generated UUID. |
 | `name` | `string` | Display name. |
-| `tags` | `string[]` | Labels for visual grouping on the main view. |
+| `tagIds` | `string[]` | Required references to tags stored in the `tags` store. |
 | `recordType` | `RecordType` | `'income'` or `'expense'`. |
 | `idealValue` | `number` | Budgeted amount per month (0 if no budget set). |
 | `createdAt` | `string` | ISO timestamp; set once at creation. |
@@ -48,17 +48,17 @@ Factory: `createCategory({ name, tags, recordType, idealValue })`
 
 Represents a single financial transaction. Defined in `src/models/Record.js`.
 
-Factory: `createRecord({ categoryId, value, name, date, month?, tags?, isRecurring, isInstallment, installmentGroupId, installmentNumber, installmentTotal, registeredInCurrentMonth })`
+Factory: `createRecord({ recordType, value, name, date, month?, tagIds?, isRecurring, isInstallment, installmentGroupId, installmentNumber, installmentTotal, registeredInCurrentMonth })`
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | `string` | Auto-generated UUID. |
-| `categoryId` | `string` | FK to `Category.id`. |
+| `recordType` | `RecordType\|null` | Required on persisted records; copied from the originating category or chosen explicitly in the form. |
 | `value` | `string\|number` | Raw formula string (e.g. `"50+7"`) or legacy numeric. Evaluated at display time via `parseFormula()`. |
 | `name` | `string` | Place or description of the transaction. |
 | `date` | `string` | Format `YYYY-MM-DD`; the actual date the transaction occurred. Defaults to today if omitted. |
 | `month` | `string` | Format `YYYY-MM`; derived from `date` by default (`date.slice(0,7)`). May differ from `date` when `registeredInCurrentMonth` is `true`. Indexed in IndexedDB for fast monthly queries. |
-| `tags` | `string[]` | Labels for the record. Combined with the parent category's tags for display and filtering. The UI requires at least one tag before saving a record. Defaults to `[]` at the model layer. |
+| `tagIds` | `string[]` | Required tag references. Records created from a category must contain a copy of all tag IDs from that category, and may contain extra tags. |
 | `isRecurring` | `boolean` | When `true`, the record is automatically propagated to the next month when the user closes the current month. |
 | `isInstallment` | `boolean` | When `true`, the record belongs to an installment group (parcelado). |
 | `installmentGroupId` | `string\|null` | Shared UUID across all records in the same installment purchase. |
@@ -69,6 +69,26 @@ Factory: `createRecord({ categoryId, value, name, date, month?, tags?, isRecurri
 | `updatedAt` | `string` | ISO timestamp; updated on every save. |
 
 **Mutual exclusion**: `isRecurring` and `isInstallment` cannot both be `true` on the same record.
+
+**Category matching rule**: records are associated with categories by `recordType` + tag containment. A record matches a category when it has the same `recordType` and contains all tag IDs from that category. A single record may therefore match multiple categories of the same type.
+
+**General balance rule**: the month summary (`actualIncome`, `expenses`, and `balance`) is always computed from unique records (by `record.id`) to avoid double counting when one record matches multiple categories.
+
+---
+
+### Tag
+
+Normalized tag entity stored separately in IndexedDB. Defined in `src/models/Tag.js`.
+
+Factory: `createTag({ name })`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Auto-generated UUID. |
+| `name` | `string` | Display label. |
+| `normalizedName` | `string` | Lowercased trimmed key used for deduplication. |
+| `createdAt` | `string` | ISO timestamp. |
+| `updatedAt` | `string` | ISO timestamp. |
 
 ---
 
@@ -126,14 +146,15 @@ Internal audit log entry. Not user-editable; created automatically by services w
 ### IndexedDB
 
 **Database name**: `dindin`  
-**Current version**: `5`
+**Current version**: `6`
 
 All data is persisted in IndexedDB via a thin wrapper in `src/services/db.js`. The wrapper handles version upgrades and exposes `getStore(storeName, mode?)` and `promisify(request)`.
 
 | Store | Key | Indexes | Purpose |
 |---|---|---|---|
 | `categories` | `id` | — | Category documents |
-| `records` | `id` | `month`, `categoryId`, `isRecurring`, `installmentGroupId` | Record documents |
+| `records` | `id` | `month`, `recordType`, `isRecurring`, `installmentGroupId` | Record documents |
+| `tags` | `id` | `normalizedName` | Normalized tag documents |
 | `settings` | `id` | — | Single settings document (key: `'settings'`) |
 | `commonRecordNames` | `id` | — | Autocomplete name strings |
 | `auditLog` | `id` | `timestamp`, `entityType`, `action` | Audit trail entries |
@@ -142,6 +163,7 @@ All data is persisted in IndexedDB via a thin wrapper in `src/services/db.js`. T
 - v3: Added `isRecurring` index on `records`.
 - v4: Added `installmentGroupId` index on `records`.
 - v5: Backfilled `updatedAt` (set to `createdAt`) on any existing records, categories, and commonRecordNames that predate the field.
+- v6: Normalized tags into a dedicated `tags` store, migrated category/record inline tags to `tagIds`, copied `recordType` into records, and removed persisted `record.categoryId`.
 
 ### JSON Export / Import
 
@@ -151,10 +173,13 @@ All data is persisted in IndexedDB via a thin wrapper in `src/services/db.js`. T
 {
   "categories": [...],
   "records": [...],
+  "tags": [...],
   "settings": { ... },
   "commonRecordNames": [...]
 }
 ```
+
+When importing a legacy JSON file that still stores inline `tags` arrays and `record.categoryId`, the import layer converts that payload internally to the normalized `tags` + `tagIds` model before persisting anything.
 
 ### CSV Import
 

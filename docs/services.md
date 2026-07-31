@@ -38,16 +38,16 @@ Domain service for `Record` documents.
 |---|---|---|
 | `getAllRecords()` | `Promise<Record[]>` | Returns all records across all months. |
 | `getRecordsByMonth(month)` | `Promise<Record[]>` | Returns all records with `record.month === month` (YYYY-MM). Uses the `month` index. |
-| `getRecordsByCategory(categoryId)` | `Promise<Record[]>` | Returns all records for a category across all months. Uses the `categoryId` index. |
+| `getRecordsByCategory(categoryId)` | `Promise<Record[]>` | Returns all records for a category across all months. Matching is done by `recordType` + category tag containment. |
 | `getRecurringRecordsByMonth(month)` | `Promise<Record[]>` | Returns records for `month` where `isRecurring === true`. |
 | `getInstallmentsByMonth(month)` | `Promise<Record[]>` | Returns records for `month` where `isInstallment === true`. |
 | `getInstallmentsByGroupId(groupId)` | `Promise<Record[]>` | Returns all records in an installment group, sorted by `installmentNumber` ascending. |
 | `getAllMonthsWithRecords()` | `Promise<string[]>` | Returns a deduplicated sorted array of all `month` keys that have at least one record. |
-| `getAllRecordTags()` | `Promise<string[]>` | Returns all unique record tags across the DB, sorted ascending. Used by tag autocomplete in record forms. |
-| `saveRecord(data)` | `Promise<Record>` | **Create or update.** If `data.id` is present, updates `updatedAt` and persists. If no `id`, calls `createRecord(data)` to generate a new record. Returns the saved record. |
+| `getAllRecordTags()` | `Promise<string[]>` | Returns all unique resolved record tag names across the DB, sorted ascending. Used by tag autocomplete in record forms. |
+| `saveRecord(data)` | `Promise<Record>` | **Create or update.** Resolves incoming tag names to `tagIds`, requires `recordType`, updates `updatedAt` on edits, and returns the hydrated record with display `tags`. |
 | `deleteRecord(id)` | `Promise<void>` | Deletes the record with the given id. |
-| `deleteRecordsByCategory(categoryId)` | `Promise<void>` | Deletes all records belonging to a category. Used when deleting a category. |
-| `saveInstallmentGroup(data, installmentCount)` | `Promise<Record[]>` | Creates `installmentCount` installment records, one per month starting from `data.date`. All share the same auto-generated `installmentGroupId`. If `data.registeredInCurrentMonth` is true, the first installment's `month` is overridden to `data.currentMonthOverride`. Returns all created records. |
+| `deleteRecordsByCategory(categoryId)` | `Promise<void>` | Deletes all records currently matched to a category by type + tags. Used when deleting a category. |
+| `saveInstallmentGroup(data, installmentCount)` | `Promise<Record[]>` | Creates `installmentCount` installment records, one per month starting from `data.date`. Requires `recordType`; resolves tags to `tagIds`. |
 | `quitarInstallments(groupId, currentMonth)` | `Promise<void>` | Moves all future installment records (those with `month > currentMonth`) to `currentMonth`. Updates their `date` to the same day number but in `currentMonth`. |
 | `updateInstallmentFromCurrent(record)` | `Promise<void>` | Propagates `name`, `value`, and `categoryId` changes from the given record to all records in the same installment group with `installmentNumber >= record.installmentNumber`. Used when editing an installment. |
 
@@ -55,15 +55,28 @@ Domain service for `Record` documents.
 
 ```js
 {
-  categoryId: string,
+  recordType: string,
   value: string,
   name: string,
-  date: string,            // YYYY-MM-DD (first installment date)
+  date: string,
   tags?: string[],
+  tagIds?: string[],
   registeredInCurrentMonth?: boolean,
-  currentMonthOverride?: string,  // YYYY-MM (if registeredInCurrentMonth is true)
+  currentMonthOverride?: string,
 }
 ```
+
+## tagService.js
+
+Domain service for normalized tag documents.
+
+| Signature | Returns | Description |
+|---|---|---|
+| `getAllTags()` | `Promise<Tag[]>` | Returns all tags from the dedicated store. |
+| `ensureTagIds(tagNames)` | `Promise<string[]>` | Deduplicates names, creates missing tags, and returns their IDs. |
+| `resolveTagNames(tagIds)` | `Promise<string[]>` | Resolves persisted tag IDs back to display names. |
+| `hydrateEntityTags(entity)` | `Promise<object>` | Adds a `tags` array to a persisted entity based on `tagIds`. |
+| `hydrateEntityTagsList(entities)` | `Promise<object[]>` | Hydrates a list of entities with display `tags`. |
 
 ---
 
@@ -112,10 +125,10 @@ Integration service for full-snapshot import/export and payload comparison helpe
 
 | Signature | Returns | Description |
 |---|---|---|
-| `getExportPayload()` | `Promise<object>` | Builds and returns a plain object snapshot of all data: `{ categories, records, settings, commonRecordNames }`. Does **not** trigger a download. |
+| `getExportPayload()` | `Promise<object>` | Builds and returns a plain object snapshot of all data: `{ categories, records, tags, settings, commonRecordNames }`. Does **not** trigger a download. |
 | `exportData()` | `Promise<void>` | Calls `getExportPayload()` and triggers a browser file download of the JSON snapshot. Filename: `dindin-{currentMonth}.json`. |
 | `importData(file)` | `Promise<void>` | Reads a `File` object, parses it as JSON, and calls `importDataFromObject()`. Throws `Error('Arquivo JSON inválido.')` on parse failure. |
-| `importDataFromObject(payload)` | `Promise<void>` | **Full replace.** Clears `categories`, `records`, `settings`, and `commonRecordNames` stores, then inserts all items from the payload. The `auditLog` store is NOT cleared. Existing IDs are preserved. |
+| `importDataFromObject(payload)` | `Promise<void>` | **Full replace.** Clears `categories`, `records`, `tags`, `settings`, and `commonRecordNames` stores, then inserts all items from the payload. Legacy JSON payloads are normalized internally first. |
 | `parseImportFile(file)` | `Promise<{ payload, isNewer }>` | Parses a file and checks whether it is newer than the local DB. Returns `{ payload: object, isNewer: boolean }`. Use this before calling `importDataFromObject()` when you need to warn the user about overwriting newer local data. |
 | `isPayloadNewer(incoming, local)` | `boolean` **(sync)** | Returns `true` if `incoming` has records with a higher max `updatedAt` than `local`. Used by Drive sync to decide direction. |
 | `arePayloadsInSync(a, b)` | `boolean` **(sync)** | Returns `true` if both payloads share the same max timestamp (neither is newer). |

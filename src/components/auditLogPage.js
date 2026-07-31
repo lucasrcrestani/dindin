@@ -1,5 +1,6 @@
 ﻿import { getAllCategories } from '../services/categoryService.js';
 import { getAllRecords } from '../services/recordService.js';
+import { findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
 const ENTITY_LABEL = { record: 'Registro', category: 'Categoria' };
@@ -31,7 +32,6 @@ class DindinAuditLogPage extends BaseComponent {
     wrapper.querySelector('#btn-audit-back').addEventListener('click', () => onBack?.());
 
     const [categories, records] = await Promise.all([getAllCategories(), getAllRecords()]);
-    const categoryMap = Object.fromEntries(categories.map((category) => [category.id, category.name]));
     const allEntries = [
       ...categories.map((category) => ({
         entityType: 'category',
@@ -42,7 +42,7 @@ class DindinAuditLogPage extends BaseComponent {
         entityType: 'record',
         name: record.name,
         createdAt: record.createdAt,
-        categoryName: categoryMap[record.categoryId] ?? null,
+        categoryName: findBestMatchingCategory(record, categories)?.name ?? null,
       })),
     ].sort((left, right) => (left.createdAt > right.createdAt ? -1 : 1));
 

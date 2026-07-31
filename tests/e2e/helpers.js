@@ -131,6 +131,10 @@ async function seedDatabase(page, payload) {
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'id' });
         }
+        if (!db.objectStoreNames.contains('tags')) {
+          const tagStore = db.createObjectStore('tags', { keyPath: 'id' });
+          tagStore.createIndex('normalizedName', 'normalizedName', { unique: true });
+        }
         if (!db.objectStoreNames.contains('commonRecordNames')) {
           db.createObjectStore('commonRecordNames', { keyPath: 'id' });
         }
@@ -159,6 +163,7 @@ async function seedDatabase(page, payload) {
 
         putAll('categories', data.categories);
         putAll('records', data.records);
+        putAll('tags', data.tags);
         putAll('commonRecordNames', data.commonRecordNames);
 
         if (data.settings) {

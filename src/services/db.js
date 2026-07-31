@@ -1,13 +1,106 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 const STORES = {
   CATEGORIES: 'categories',
   RECORDS: 'records',
+  TAGS: 'tags',
   SETTINGS: 'settings',
   COMMON_RECORD_NAMES: 'commonRecordNames',
   AUDIT_LOG: 'auditLog',
 };
+
+function normalizeTagName(name) {
+  return String(name ?? '').trim().toLowerCase();
+}
+
+function generateUpgradeId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `tag-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ensureTag(rawTag, tagStore, tagIdsByName, now) {
+  const name = String(rawTag ?? '').trim();
+  if (!name) return null;
+
+  const normalizedName = normalizeTagName(name);
+  const existingId = tagIdsByName.get(normalizedName);
+  if (existingId) return existingId;
+
+  const id = generateUpgradeId();
+  tagStore.put({
+    id,
+    name,
+    normalizedName,
+    createdAt: now,
+    updatedAt: now,
+  });
+  tagIdsByName.set(normalizedName, id);
+  return id;
+}
+
+function migrateLegacyTagsAndRecords(upgradeTx) {
+  const now = new Date().toISOString();
+  const categoryStore = upgradeTx.objectStore(STORES.CATEGORIES);
+  const recordStore = upgradeTx.objectStore(STORES.RECORDS);
+  const tagStore = upgradeTx.objectStore(STORES.TAGS);
+  const tagIdsByName = new Map();
+  const categoryMetaById = new Map();
+
+  categoryStore.openCursor().onsuccess = (categoryEvent) => {
+    const categoryCursor = categoryEvent.target.result;
+    if (categoryCursor) {
+      const category = categoryCursor.value;
+      const legacyTags = Array.isArray(category.tagIds) ? [] : (category.tags ?? []);
+      const tagIds = Array.isArray(category.tagIds)
+        ? [...new Set(category.tagIds.filter(Boolean))]
+        : [...new Set(legacyTags.map((tag) => ensureTag(tag, tagStore, tagIdsByName, now)).filter(Boolean))];
+
+      const migratedCategory = {
+        ...category,
+        tagIds,
+        updatedAt: category.updatedAt ?? category.createdAt ?? now,
+      };
+      delete migratedCategory.tags;
+
+      categoryMetaById.set(migratedCategory.id, {
+        recordType: migratedCategory.recordType,
+        tagIds,
+      });
+      categoryCursor.update(migratedCategory);
+      categoryCursor.continue();
+      return;
+    }
+
+    recordStore.openCursor().onsuccess = (recordEvent) => {
+      const recordCursor = recordEvent.target.result;
+      if (!recordCursor) return;
+
+      const record = recordCursor.value;
+      const categoryMeta = record.categoryId ? categoryMetaById.get(record.categoryId) : null;
+      const legacyTags = Array.isArray(record.tagIds) ? [] : (record.tags ?? []);
+      const inheritedTagIds = categoryMeta?.tagIds ?? [];
+      const ownTagIds = Array.isArray(record.tagIds)
+        ? record.tagIds.filter(Boolean)
+        : legacyTags.map((tag) => ensureTag(tag, tagStore, tagIdsByName, now)).filter(Boolean);
+      const tagIds = [...new Set([...inheritedTagIds, ...ownTagIds])];
+
+      const migratedRecord = {
+        ...record,
+        recordType: record.recordType ?? categoryMeta?.recordType ?? null,
+        tagIds,
+        updatedAt: record.updatedAt ?? record.createdAt ?? now,
+      };
+      delete migratedRecord.tags;
+      delete migratedRecord.categoryId;
+
+      recordCursor.update(migratedRecord);
+      recordCursor.continue();
+    };
+  };
+}
 
 /** @type {IDBDatabase|null} */
 let db = null;
@@ -35,7 +128,11 @@ function initDB() {
       if (!database.objectStoreNames.contains(STORES.RECORDS)) {
         const recordStore = database.createObjectStore(STORES.RECORDS, { keyPath: 'id' });
         recordStore.createIndex('month', 'month', { unique: false });
-        recordStore.createIndex('categoryId', 'categoryId', { unique: false });
+        recordStore.createIndex('recordType', 'recordType', { unique: false });
+      }
+      if (!database.objectStoreNames.contains(STORES.TAGS)) {
+        const tagStore = database.createObjectStore(STORES.TAGS, { keyPath: 'id' });
+        tagStore.createIndex('normalizedName', 'normalizedName', { unique: true });
       }
       if (!database.objectStoreNames.contains(STORES.SETTINGS)) {
         database.createObjectStore(STORES.SETTINGS, { keyPath: 'id' });
@@ -54,6 +151,12 @@ function initDB() {
       if (database.objectStoreNames.contains(STORES.RECORDS)) {
         const tx = event.target.transaction;
         const recStore = tx.objectStore(STORES.RECORDS);
+        if (recStore.indexNames.contains('categoryId')) {
+          recStore.deleteIndex('categoryId');
+        }
+        if (!recStore.indexNames.contains('recordType')) {
+          recStore.createIndex('recordType', 'recordType', { unique: false });
+        }
         if (!recStore.indexNames.contains('isRecurring')) {
           recStore.createIndex('isRecurring', 'isRecurring', { unique: false });
         }
@@ -77,6 +180,10 @@ function initDB() {
             cursor.continue();
           };
         });
+      }
+
+      if (event.oldVersion < 6) {
+        migrateLegacyTagsAndRecords(event.target.transaction);
       }
     };
 

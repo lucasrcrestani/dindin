@@ -27,6 +27,7 @@ function fakeRequest(result) {
 const stores = {
   categories: makeStore(),
   records: makeStore(),
+  tags: makeStore(),
   settings: makeStore(),
   commonRecordNames: makeStore(),
   auditLog: makeStore(),
@@ -36,6 +37,7 @@ vi.mock('../src/services/db.js', () => ({
   STORES: {
     CATEGORIES:          'categories',
     RECORDS:             'records',
+    TAGS:                'tags',
     SETTINGS:            'settings',
     COMMON_RECORD_NAMES: 'commonRecordNames',
     AUDIT_LOG:           'auditLog',
@@ -55,6 +57,19 @@ vi.mock('../src/services/db.js', () => ({
 vi.mock('../src/services/settingsService.js', () => ({
   getSettings: vi.fn().mockResolvedValue({ id: 'main', period: 'monthly', currentMonth: '2025-06' }),
   saveSettings: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../src/services/categoryService.js', () => ({
+  getAllRawCategories: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../src/services/recordService.js', () => ({
+  getAllRawRecords: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../src/services/tagService.js', () => ({
+  normalizeTagName: vi.fn((name) => String(name ?? '').trim().toLowerCase()),
+  uniqueTagIds: vi.fn((tagIds = []) => [...new Set(tagIds.filter(Boolean))]),
 }));
 
 import { importDataFromObject } from '../src/services/importExportService.js';
@@ -89,6 +104,7 @@ describe('importDataFromObject', () => {
 
     expect(stores.categories.clear).toHaveBeenCalled();
     expect(stores.records.clear).toHaveBeenCalled();
+    expect(stores.tags.clear).toHaveBeenCalled();
     expect(stores.commonRecordNames.clear).toHaveBeenCalled();
     expect(stores.settings.clear).toHaveBeenCalled();
   });
@@ -100,8 +116,8 @@ describe('importDataFromObject', () => {
 
   it('inserts all provided categories', async () => {
     const cats = [
-      { id: 'c1', name: 'Food', updatedAt: '2025-01-01T00:00:00.000Z' },
-      { id: 'c2', name: 'Transport', updatedAt: '2025-01-02T00:00:00.000Z' },
+      { id: 'c1', name: 'Food', tagIds: ['t1'], updatedAt: '2025-01-01T00:00:00.000Z' },
+      { id: 'c2', name: 'Transport', tagIds: ['t2'], updatedAt: '2025-01-02T00:00:00.000Z' },
     ];
     await importDataFromObject({ categories: cats, records: [], commonRecordNames: [] });
     expect(stores.categories.put).toHaveBeenCalledTimes(2);
@@ -109,12 +125,18 @@ describe('importDataFromObject', () => {
 
   it('inserts all provided records', async () => {
     const recs = [
-      { id: 'r1', name: 'Lunch', updatedAt: '2025-01-01T00:00:00.000Z' },
-      { id: 'r2', name: 'Bus',   updatedAt: '2025-01-02T00:00:00.000Z' },
-      { id: 'r3', name: 'Rent',  updatedAt: '2025-01-03T00:00:00.000Z' },
+      { id: 'r1', name: 'Lunch', recordType: 'expense', tagIds: ['t1'], updatedAt: '2025-01-01T00:00:00.000Z' },
+      { id: 'r2', name: 'Bus', recordType: 'expense', tagIds: ['t2'], updatedAt: '2025-01-02T00:00:00.000Z' },
+      { id: 'r3', name: 'Rent', recordType: 'expense', tagIds: ['t3'], updatedAt: '2025-01-03T00:00:00.000Z' },
     ];
     await importDataFromObject({ categories: [], records: recs, commonRecordNames: [] });
     expect(stores.records.put).toHaveBeenCalledTimes(3);
+  });
+
+  it('inserts all provided tags', async () => {
+    const tags = [{ id: 't1', name: 'Essencial', normalizedName: 'essencial' }];
+    await importDataFromObject({ categories: [], records: [], tags, commonRecordNames: [] });
+    expect(stores.tags.put).toHaveBeenCalledTimes(1);
   });
 
   it('inserts all provided commonRecordNames', async () => {
@@ -136,5 +158,19 @@ describe('importDataFromObject', () => {
 
   it('handles completely empty payload without throwing', async () => {
     await expect(importDataFromObject({})).resolves.toBeUndefined();
+  });
+
+  it('normalizes legacy payloads with inline tags and categoryId', async () => {
+    await importDataFromObject({
+      categories: [{ id: 'c1', name: 'Food', recordType: 'expense', tags: ['Essencial'] }],
+      records: [{ id: 'r1', name: 'Lunch', value: '10', date: '2025-01-01', categoryId: 'c1', tags: ['Mercado'] }],
+    });
+
+    const savedCategory = stores.categories.put.mock.calls[0][0];
+    const savedRecord = stores.records.put.mock.calls[0][0];
+    expect(savedCategory.tagIds.length).toBeGreaterThan(0);
+    expect(savedRecord.tagIds.length).toBeGreaterThan(0);
+    expect(savedRecord.recordType).toBe('expense');
+    expect(savedRecord.categoryId).toBeUndefined();
   });
 });

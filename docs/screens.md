@@ -30,6 +30,7 @@ Shows the balance summary for `currentMonth`.
 * **Saldo** — difference between total income and total expenses for the month.
 * **Receitas** — sum of all income records for the month vs. idealValue of income categories.
 * **Despesas** — sum of all expense records for the month vs. total idealValue of expense categories.
+* **No duplicate counting in summary** — even when the same record appears in multiple category cards (tag+type matching), the top summary counts each record only once.
 * **Status color** (applied to the Saldo value):
   * Green — total expenses below 75% of total idealValue.
   * Yellow — total expenses 75–99% of total idealValue.
@@ -123,7 +124,7 @@ Opened by clicking any category card (in the main view or history modal).
 * **Tags** — each record displays its effective tags: the union of the parent category's tags and the record's own `tags` field, shown as badge chips below the record row.
 * **Edit button (✏️)** per record — opens the Record modal pre-filled; saves in-place.
 * **Delete button (✕)** per record — asks for confirmation before removing.
-* **Adicionar Lançamento** button — opens the Record modal with the category pre-selected.
+* **Adicionar Lançamento** button — opens the Record modal with the category's type pre-selected and all category tags already copied into the form.
 * Works for both the current month and historical months. In historical months the "Adicionar Lançamento" button still allows adding records (they are saved with that historical month).
 
 ---
@@ -136,11 +137,11 @@ Used for both creating and editing a record. Title changes to "Editar Lançament
 
 | Field | UI label | Notes |
 |---|---|---|
-| Category | Categoria | Search bar: user types to filter categories; results are grouped by Despesas / Receitas in a dropdown. Pre-filled when opened from a Category Detail. |
+| Type | Tipo | Select: Despesa / Receita. When opened from a Category Detail, it starts pre-selected and locked to that category's type. |
 | Name/place | Nome / Local | Text input with autocomplete from `CommonRecordsName`. |
 | Date | Data | Date picker; defaults to today. |
 | Value | Valor | Accepts a formula string (e.g. `50+7`, `120/3`). Both `.` and `,` are valid decimal separators. Evaluated via `parseFormula()` before saving. |
-| Tags | Tags | Tag input widget. Space, comma, Enter, or Tab separates tags. Backspace removes the last tag. When a category is selected, the field auto-fills that category's tags. Existing record tags are suggested as the user types. Pre-filled when editing. Saved as `record.tags`. |
+| Tags | Tags | Tag input widget. Space, comma, Enter, or Tab separates tags. Existing record tags are suggested as the user types. When opened from a Category Detail, all category tags are pre-filled and cannot be removed; the user may add extra tags. Persisted as normalized `tagIds`. |
 | Recurring | Recorrente | Checkbox. Mutually exclusive with Parcelado. |
 | Installment | Parcelado | Checkbox + number-of-installments input. Mutually exclusive with Recorrente. |
 
@@ -170,7 +171,7 @@ Used for both creating and editing a category.
 | Name | Nome | Text input. |
 | Type | Tipo | Radio: Despesa / Receita. |
 | Budget | Valor Ideal | Currency input (R$). |
-| Tags | Tags | Comma-separated text; split into an array on save. |
+| Tags | Tags | Required. At least one tag must be provided. Saved as normalized `tagIds` through the tag service. |
 
 ---
 
@@ -302,11 +303,11 @@ Full-page view (replaces the main view) for adding multiple records at once.
 * Entry point: **Lançamentos em Massa** option in the Floating Button action sheet.
 * Records are displayed as rows in a horizontal table. Each column corresponds to a field:
   * **#** — row number.
-  * **Categoria** — search-as-you-type, grouped by Despesas / Receitas.
+  * **Tipo** — select Despesa / Receita.
   * **Nome / Local** — text input with autocomplete from `CommonRecordNames`.
   * **Data** — date picker; defaults to today. Shows future-month warning and current-month suggestion checkbox inside the cell when applicable (same logic as the Record modal).
   * **Valor (R$)** — accepts a formula string (e.g. `50+7`).
-  * **Tags** — same tag widget as the Record modal. Space, comma, Enter, or Tab separates tags. Category tags auto-fill when a category is selected. Existing record tags are suggested as the user types.
+  * **Tags** — same tag widget as the Record modal. Space, comma, Enter, or Tab separates tags. Existing record tags are suggested as the user types.
   * **Recorrente** — checkbox; mutually exclusive with Parcelado.
   * **Parcelado** — checkbox; mutually exclusive with Recorrente.
   * **Parcelas** — number input; visible only when Parcelado is checked.

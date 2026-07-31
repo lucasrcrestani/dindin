@@ -1,7 +1,5 @@
 import RecordType from '../models/RecordType.js';
-import { createCategory } from '../models/Category.js';
-import { createRecord } from '../models/Record.js';
-import { saveCategory } from './categoryService.js';
+import { getCategoryById, saveCategory } from './categoryService.js';
 import { saveRecord } from './recordService.js';
 
 /** @typedef {{ name: string, tags: string[], recordType: string, idealValue: number, monthValues: Object.<string, number> }} ParsedCategory */
@@ -236,35 +234,38 @@ async function executeCSVImport(parsedCategories, mappings) {
     }
 
     let categoryId;
+    let targetCategory;
 
     if (mapping.action === 'create') {
       console.groupCollapsed(`  [${i}] CREATE — "${parsed.name}"`);
-      const saved = await saveCategory(createCategory({
+      const saved = await saveCategory({
         name: parsed.name,
         tags: parsed.tags,
         recordType: parsed.recordType,
         idealValue: parsed.idealValue,
-      }));
+      });
       categoryId = saved.id;
+      targetCategory = saved;
       console.log('Categoria criada com id:', categoryId);
       console.groupEnd();
       categoriesCreated++;
     } else {
       // mapTo
       categoryId = mapping.existingCategoryId;
+      targetCategory = await getCategoryById(categoryId);
       console.log(`  [${i}] MERGE — "${parsed.name}" → categoryId existente: ${categoryId}`);
       categoriesMerged++;
     }
 
     console.groupCollapsed(`  [${i}] Inserindo registros para "${parsed.name}" (${Object.keys(parsed.monthValues).length} meses)`);
     for (const [monthKey, value] of Object.entries(parsed.monthValues)) {
-      const record = createRecord({
-        categoryId,
+      const record = await saveRecord({
+        recordType: targetCategory?.recordType ?? parsed.recordType,
         value,
         name: parsed.name,
         date: `${monthKey}-01`,
+        tags: targetCategory?.tags ?? parsed.tags,
       });
-      await saveRecord(record);
       console.log(`    ${monthKey} → R$ ${value.toFixed(2)} (id: ${record.id})`);
       recordsInserted++;
     }

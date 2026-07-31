@@ -51,6 +51,7 @@ Pure factory functions. No imports from `services/` or `store/`. Each factory au
 |---|---|---|
 | `Category.js` | `createCategory(data)` | Category object |
 | `Record.js` | `createRecord(data)` | Record object |
+| `Tag.js` | `createTag(data)` | Tag object |
 | `CommonRecordName.js` | `createCommonRecordName(name)` | CommonRecordName object |
 | `ProjectSettings.js` | `defaultSettings()` | Default settings object |
 | `RecordType.js` | — | `RecordType` enum (`INCOME`/`EXPENSE`) |
@@ -60,7 +61,7 @@ Pure factory functions. No imports from `services/` or `store/`. Each factory au
 Three logical tiers:
 
 1. **DB wrapper** — `db.js`: manages the IndexedDB connection, store names, version migrations.
-2. **Domain services** — `recordService.js`, `categoryService.js`, `settingsService.js`, `commonRecordNameService.js`, `auditLogService.js`: CRUD and business logic per entity.
+2. **Domain services** — `recordService.js`, `categoryService.js`, `tagService.js`, `settingsService.js`, `commonRecordNameService.js`, `auditLogService.js`: CRUD and business logic per entity.
 3. **Integration services** — `importExportService.js`, `driveService.js`, `csvImportService.js`, `pickerService.js`: cross-domain flows and external APIs.
 
 Full API reference: [`services.md`](services.md).
@@ -217,7 +218,7 @@ Always use model factories to create new objects. Never construct `{ id: ..., cr
 
 ```js
 // Correct
-const record = createRecord({ categoryId, value, name, date });
+const record = createRecord({ recordType, value, name, date, tagIds });
 
 // Wrong — missing auto-generated fields
 const record = { id: generateId(), categoryId, value, name, date };

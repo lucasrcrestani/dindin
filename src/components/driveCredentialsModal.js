@@ -57,9 +57,9 @@ class DindinDriveCredentialsModal extends BaseComponent {
     const cancel = () => this.close(new Error('Cancelado pelo usuário.'));
     wrapper.querySelector('.modal__close').addEventListener('click', cancel);
     wrapper.querySelector('#btn-creds-cancel').addEventListener('click', cancel);
-    this.onclick = (event) => {
-      if (event.target === this) cancel();
-    };
+    this.addEventListener('click', (event) => {
+      if (event.composedPath()[0] === this) cancel();
+    });
 
     wrapper.querySelector('#form-creds').addEventListener('submit', (event) => {
       event.preventDefault();

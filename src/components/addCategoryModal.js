@@ -5,12 +5,20 @@ import { BaseComponent } from './baseComponent.js';
 class DindinAddCategoryModal extends BaseComponent {
   connectedCallback() {
     super.connectedCallback();
-    requestAnimationFrame(() => this.classList.add('modal-overlay--visible'));
+    console.log('[AddCategoryModal] connected');
+    requestAnimationFrame(() => {
+      console.log('[AddCategoryModal] showing');
+      this.classList.add('modal-overlay--visible');
+    });
   }
 
   close() {
+    console.log('[AddCategoryModal] closing');
     this.classList.remove('modal-overlay--visible');
-    this.addEventListener('transitionend', () => this.remove(), { once: true });
+    this.addEventListener('transitionend', () => {
+      console.log('[AddCategoryModal] removed');
+      this.remove();
+    }, { once: true });
   }
 
   render() {
@@ -52,6 +60,7 @@ class DindinAddCategoryModal extends BaseComponent {
                 ${initialTagsHtml}
                 <input id="cat-tags" type="text" placeholder="Adicionar tag..." class="tag-input__field" autocomplete="off" />
               </div>
+              <span id="cat-tags-error" class="form-error" style="display:none">Adicione ao menos uma tag.</span>
             </div>
             <div class="modal__footer">
               <button type="button" class="btn btn--secondary" id="btn-cat-cancel">Cancelar</button>
@@ -83,9 +92,9 @@ class DindinAddCategoryModal extends BaseComponent {
 
     wrapper.querySelector('.modal__close').addEventListener('click', () => this.close());
     wrapper.querySelector('#btn-cat-cancel').addEventListener('click', () => this.close());
-    this.onclick = (event) => {
-      if (event.target === this) this.close();
-    };
+    this.addEventListener('click', (event) => {
+      if (event.composedPath()[0] === this) this.close();
+    });
 
     tagTextField.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === 'Tab') {
@@ -107,6 +116,10 @@ class DindinAddCategoryModal extends BaseComponent {
       }
     });
 
+    tagTextField.addEventListener('blur', () => {
+      if (tagTextField.value.trim()) addTag(tagTextField.value);
+    });
+
     tagsContainer.addEventListener('click', () => tagTextField.focus());
     tagsContainer.querySelectorAll('.tag-badge__remove').forEach((button) => {
       button.addEventListener('click', () => button.closest('[data-tag]').remove());
@@ -123,6 +136,14 @@ class DindinAddCategoryModal extends BaseComponent {
       const idealValue = parseFloat(wrapper.querySelector('#cat-ideal').value) || 0;
       if (tagTextField.value.trim()) addTag(tagTextField.value);
       const tags = [...tagsContainer.querySelectorAll('[data-tag]')].map((element) => element.dataset.tag);
+      const tagsError = wrapper.querySelector('#cat-tags-error');
+
+      if (tags.length === 0) {
+        tagsError.style.display = '';
+        tagTextField.focus();
+        return;
+      }
+      tagsError.style.display = 'none';
 
       const data = { name, recordType, idealValue, tags };
       if (isEdit) data.id = initial.id;

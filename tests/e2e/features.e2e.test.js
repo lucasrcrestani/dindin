@@ -30,13 +30,8 @@ async function openFabMenu(page, itemText) {
 // ---------------------------------------------------------------------------
 // Helper: fill and submit the "Novo Lançamento" record modal
 // ---------------------------------------------------------------------------
-async function fillRecordModal(page, { categoryName, name, date, value, tags = ['geral'], recurring = false, installment = false, installmentCount }) {
-  // Select category via autocomplete
-  await page.focus('#rec-category-search');
-  await page.fill('#rec-category-search', categoryName);
-  await page.waitForSelector('#rec-category-list .autocomplete-item', { state: 'visible' });
-  await page.click('#rec-category-list .autocomplete-item');
-
+async function fillRecordModal(page, { recordType, name, date, value, tags = ['geral'], recurring = false, installment = false, installmentCount }) {
+  await page.selectOption('#rec-type', recordType);
   await page.fill('#rec-name', name);
   await page.fill('#rec-date', date);
   await page.fill('#rec-value', value);
@@ -118,6 +113,8 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.fill('#cat-name', 'Alimentação');
     await page.selectOption('#cat-type', 'expense');
     await page.fill('#cat-ideal', '500');
+    await page.fill('#cat-tags', 'essencial');
+    await page.press('#cat-tags', 'Enter');
 
     await page.click('#form-category button[type="submit"]');
 
@@ -144,11 +141,11 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
     await fillRecordModal(page, {
-      categoryName: 'Alimentação',
+      recordType: 'expense',
       name: 'Supermercado Extra',
       date: '2026-05-15',
       value: '120',
-      tags: ['mercado'],
+      tags: ['essencial', 'mercado'],
     });
 
     // Modal closes and page re-renders
@@ -175,7 +172,7 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
     await fillRecordModal(page, {
-      categoryName: 'Salário',
+      recordType: 'income',
       name: 'Pagamento mensal',
       date: '2026-05-05',
       value: '3500',
@@ -202,11 +199,11 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
     await fillRecordModal(page, {
-      categoryName: 'Alimentação',
+      recordType: 'expense',
       name: 'Aluguel',
       date: '2026-05-01',
       value: '1200',
-      tags: ['fixo'],
+      tags: ['essencial', 'fixo'],
       recurring: true,
     });
 
@@ -232,11 +229,11 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
     await fillRecordModal(page, {
-      categoryName: 'Alimentação',
+      recordType: 'expense',
       name: 'Televisão',
       date: '2026-05-10',
       value: '3600',
-      tags: ['eletronico'],
+      tags: ['essencial', 'eletronico'],
       installment: true,
       installmentCount: 12,
     });
@@ -317,32 +314,25 @@ test.describe('DinDin — E2E Feature Tests', () => {
     // There's already one empty row; fill it
     const row = page.locator('.bulk-row').first();
 
-    // Select category via autocomplete
-    await row.locator('.bulk-cat-search').focus();
-    await row.locator('.bulk-cat-search').fill('Alimentação');
-    await page.waitForSelector('.bulk-cat-list .autocomplete-item', { state: 'visible' });
-    await page.locator('.bulk-cat-list .autocomplete-item').first().click();
+    await row.locator('.bulk-type').selectOption('expense');
 
     await row.locator('.bulk-name').fill('Mercado do João');
     await row.locator('.bulk-date').fill('2026-05-20');
     await row.locator('.bulk-value').fill('75');
-    await row.locator('.bulk-tags-input').fill('feira,');
-    await expect(row.locator('.bulk-tags-container [data-tag="feira"]')).toBeVisible();
+    await row.locator('.bulk-tags-input').fill('essencial,');
+    await expect(row.locator('.bulk-tags-container [data-tag="essencial"]')).toBeVisible();
 
     // Add a second row
     await page.click('#btn-bulk-add-row');
     const row2 = page.locator('.bulk-row').nth(1);
 
-    await row2.locator('.bulk-cat-search').focus();
-    await row2.locator('.bulk-cat-search').fill('Alimentação');
-    await page.waitForSelector('.bulk-cat-list .autocomplete-item', { state: 'visible' });
-    await page.locator('.bulk-cat-list .autocomplete-item').first().click();
+    await row2.locator('.bulk-type').selectOption('expense');
 
     await row2.locator('.bulk-name').fill('Padaria');
     await row2.locator('.bulk-date').fill('2026-05-21');
     await row2.locator('.bulk-value').fill('30');
-    await row2.locator('.bulk-tags-input').fill('cafe ');
-    await expect(row2.locator('.bulk-tags-container [data-tag="cafe"]')).toBeVisible();
+    await row2.locator('.bulk-tags-input').fill('essencial ');
+    await expect(row2.locator('.bulk-tags-container [data-tag="essencial"]')).toBeVisible();
 
     // Save all
     await page.click('#btn-bulk-save');
@@ -402,11 +392,11 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
     await fillRecordModal(page, {
-      categoryName: 'Alimentação',
+      recordType: 'expense',
       name: 'Restaurante em viagem',
       date: '2026-05-20',
       value: '80',
-      tags: ['viagem'],
+      tags: ['essencial', 'viagem'],
     });
 
     await page.waitForSelector('#modal-rec-title', { state: 'detached' });
@@ -440,6 +430,30 @@ test.describe('DinDin — E2E Feature Tests', () => {
     assertNoErrors(logs);
   });
 
+  test('category detail modal stays open after opening a category', async ({ page }) => {
+    const logs = collectLogs(page);
+
+    await seedDatabase(page, FIXTURE);
+    await waitForBootstrap(page);
+
+    await page.click('[data-category-id="cat-expense-001"]');
+    await page.waitForSelector('#modal-detail-title', { state: 'visible' });
+
+    await expect(page.locator('#modal-detail-title')).toContainText('Alimentação');
+    await expect(page.locator('#btn-detail-add')).toBeVisible();
+
+    const detailTitleVisible = await page.locator('#modal-detail-title').isVisible();
+    expect(detailTitleVisible).toBe(true);
+
+    const detailModalExists = await page.locator('#modal-detail-title').count();
+    expect(detailModalExists).toBeGreaterThan(0);
+
+    expect(hasLog(logs, '[CategoryDetailModal] connected')).toBe(true);
+    expect(hasLog(logs, '[CategoryDetailModal] showing')).toBe(true);
+
+    assertNoErrors(logs);
+  });
+
   test('record modal tags — auto-fill category tags, require tags, and suggest existing tags', async ({ page }) => {
     const logs = collectLogs(page);
 
@@ -461,21 +475,28 @@ test.describe('DinDin — E2E Feature Tests', () => {
     await openFabMenu(page, 'Novo Lançamento');
     await page.waitForSelector('#modal-rec-title', { state: 'visible' });
 
-    await page.fill('#rec-category-search', 'Salário');
-    await page.waitForSelector('#rec-category-list .autocomplete-item', { state: 'visible' });
-    await page.click('#rec-category-list .autocomplete-item');
+    await page.selectOption('#rec-type', 'income');
     await page.fill('#rec-name', 'Sem tag');
     await page.fill('#rec-date', '2026-05-22');
     await page.fill('#rec-value', '100');
     await page.click('#form-record button[type="submit"]');
     await expect(page.locator('#rec-tags-error')).toBeVisible();
 
-    await page.fill('#rec-category-search', 'Alimentação');
-    await page.waitForSelector('#rec-category-list .autocomplete-item', { state: 'visible' });
-    await page.click('#rec-category-list .autocomplete-item');
+    await page.click('.modal__close');
+    await page.waitForSelector('#modal-rec-title', { state: 'detached' });
+
+    await page.click('[data-category-id="cat-expense-001"]');
+    await page.waitForSelector('#btn-detail-add', { state: 'visible' });
+    await page.click('#btn-detail-add');
+    await page.waitForSelector('#modal-rec-title', { state: 'visible' });
+
     await expect(page.locator('#rec-tags-container [data-tag="essencial"]')).toBeVisible();
     await expect(page.locator('#rec-tags-container [data-tag="mercado"]')).toBeVisible();
+    await expect(page.locator('#rec-type')).toHaveValue('expense');
 
+    await page.fill('#rec-name', 'Compra contextual');
+    await page.fill('#rec-date', '2026-05-22');
+    await page.fill('#rec-value', '100');
     await page.fill('#rec-tags', 'delivery,');
     await expect(page.locator('#rec-tags-container [data-tag="delivery"]')).toBeVisible();
 
@@ -490,7 +511,6 @@ test.describe('DinDin — E2E Feature Tests', () => {
 
     await page.click('#form-record button[type="submit"]');
     await page.waitForSelector('#modal-rec-title', { state: 'detached' });
-    expect(hasLog(logs, '[Add Record] Categoria selecionada: Alimentação')).toBe(true);
     expect(hasLog(logs, '[Add Record] Record saved:')).toBe(true);
 
     assertNoErrors(logs);

@@ -4,7 +4,7 @@ import { generateId } from '../utils/idUtils.js';
  * @typedef {Object} Category
  * @property {string} id
  * @property {string} name
- * @property {string[]} tags
+ * @property {string[]} tagIds
  * @property {import('./RecordType.js').default} recordType
  * @property {number} idealValue
  * @property {string} createdAt  - ISO string
@@ -15,12 +15,12 @@ import { generateId } from '../utils/idUtils.js';
  * @param {Omit<Category, 'id' | 'createdAt' | 'updatedAt'>} data
  * @returns {Category}
  */
-function createCategory({ name, tags = [], recordType, idealValue = 0 }) {
+function createCategory({ name, tagIds = [], recordType, idealValue = 0 }) {
   const now = new Date().toISOString();
   return {
     id: generateId(),
     name,
-    tags,
+    tagIds,
     recordType,
     idealValue,
     createdAt: now,

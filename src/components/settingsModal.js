@@ -74,9 +74,9 @@ class DindinSettingsModal extends BaseComponent {
 
     wrapper.querySelector('.modal__close').addEventListener('click', () => this.close());
     wrapper.querySelector('#btn-cfg-cancel').addEventListener('click', () => this.close());
-    this.onclick = (event) => {
-      if (event.target === this) this.close();
-    };
+    this.addEventListener('click', (event) => {
+      if (event.composedPath()[0] === this) this.close();
+    });
 
     const renderDriveSection = async () => {
       const section = wrapper.querySelector('#drive-section-content');

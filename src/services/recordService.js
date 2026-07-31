@@ -2,14 +2,26 @@ import { getStore, promisify, STORES } from './db.js';
 import { createRecord } from '../models/Record.js';
 import { generateId } from '../utils/idUtils.js';
 import { incrementMonth } from '../utils/dateUtils.js';
+import { getRawCategoryById } from './categoryService.js';
+import { hydrateEntityTags, hydrateEntityTagsList, resolveInputTagIds } from './tagService.js';
 
-async function getAllRecords() {
+async function getAllRawRecords() {
   return promisify(getStore(STORES.RECORDS).getAll());
 }
 
-async function getRecordsByMonth(month) {
+async function getAllRecords() {
+  const records = await getAllRawRecords();
+  return hydrateEntityTagsList(records);
+}
+
+async function getRawRecordsByMonth(month) {
   const index = getStore(STORES.RECORDS).index('month');
   return promisify(index.getAll(IDBKeyRange.only(month)));
+}
+
+async function getRecordsByMonth(month) {
+  const records = await getRawRecordsByMonth(month);
+  return hydrateEntityTagsList(records);
 }
 
 /**
@@ -20,80 +32,38 @@ async function getRecordsByMonth(month) {
  * @returns {Promise<Object[]>} Array of matching records
  */
 async function getRecordsByCategory(categoryId) {
-  // First, get records directly by categoryId
-  const index = getStore(STORES.RECORDS).index('categoryId');
-  let directRecords = await promisify(index.getAll(IDBKeyRange.only(categoryId)));
-  
-  // Get the category to understand its tags and type
-  const categoryIndex = getStore(STORES.CATEGORIES);
-  const category = await promisify(categoryIndex.get(categoryId));
-  
+  const category = await getRawCategoryById(categoryId);
   if (!category) {
     console.log('[Record] Categoria não encontrada para ID:', categoryId);
-    return directRecords;
+    return [];
   }
-  
-  // Get all records to check for tag sharing
-  const allRecords = await getAllRecords();
-  
-  // Filter records that share tags with the category and have same record type
-  let tagSharedRecords = [];
-  if (category.tags && category.tags.length > 0) {
-    console.log('[Record] Buscando registros com tags compartilhadas para categoria:', categoryId);
-    
-    tagSharedRecords = allRecords.filter(record => {
-      // Must be of the same record type as the category
-      const isSameType = record.categoryId === categoryId || 
-                        (category.recordType && 
-                         ((record.isRecurring && category.recordType === 'income') || 
-                          (!record.isRecurring && category.recordType === 'expense')));
-      
-      if (!isSameType) {
-        return false;
-      }
-      
-      // Check if the record has at least all tags from the category
-      const recordTags = record.tags || [];
-      const categoryTags = category.tags || [];
-      
-      // If record doesn't have any of the category's tags, skip it
-      if (categoryTags.length === 0) {
-        return false;
-      }
-      
-      // Check if record has at least all tags from the category
-      const hasAllCategoryTags = categoryTags.every(tag => 
-        recordTags.includes(tag)
-      );
-      
-      // If we found records with shared tags, include them
-      return hasAllCategoryTags && record.categoryId !== categoryId;
-    });
-  }
-  
-  // Combine direct records and tag-shared records, removing duplicates
-  const combinedRecords = [...directRecords, ...tagSharedRecords];
-  const uniqueRecords = [];
-  const seenIds = new Set();
-  
-  for (const record of combinedRecords) {
-    if (!seenIds.has(record.id)) {
-      seenIds.add(record.id);
-      uniqueRecords.push(record);
-    }
-  }
-  
-  console.log('[Record] Registros encontrados por categoria e tags:', uniqueRecords.length, 'registros');
-  return uniqueRecords;
+
+  const allRecords = await getAllRawRecords();
+  const categoryTagIds = category.tagIds ?? [];
+  const matchingRecords = allRecords.filter((record) => {
+    if (record.recordType !== category.recordType) return false;
+    if (categoryTagIds.length === 0) return false;
+    const recordTagIds = record.tagIds ?? [];
+    return categoryTagIds.every((tagId) => recordTagIds.includes(tagId));
+  });
+
+  console.log('[Record] Registros encontrados por categoria e tags:', matchingRecords.length, 'registros');
+  return hydrateEntityTagsList(matchingRecords);
 }
 
 async function saveRecord(data) {
+  const tagIds = await resolveInputTagIds(data, true);
+  if (!data.recordType) {
+    throw new Error('Tipo do lançamento é obrigatório.');
+  }
+
   const record = data.id
-    ? { ...data, updatedAt: new Date().toISOString() }
-    : createRecord(data);
+    ? { ...data, tagIds, updatedAt: new Date().toISOString() }
+    : createRecord({ ...data, tagIds });
+  delete record.tags;
   await promisify(getStore(STORES.RECORDS, 'readwrite').put(record));
   console.log('[Record] Registro salvo:', record.name, `(id: ${record.id}, type: ${record.isRecurring ? 'recurring' : record.isInstallment ? 'installment' : 'simple'})`);
-  return record;
+  return hydrateEntityTags(record);
 }
 
 async function deleteRecord(id) {
@@ -122,16 +92,18 @@ async function getInstallmentsByMonth(month) {
 async function getInstallmentsByGroupId(groupId) {
   const index = getStore(STORES.RECORDS).index('installmentGroupId');
   const records = await promisify(index.getAll(IDBKeyRange.only(groupId)));
-  return records.sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
+  const hydratedRecords = await hydrateEntityTagsList(records);
+  return hydratedRecords.sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
 }
 
 /**
  * Creates N installment records starting from the given date, one per month.
- * @param {{ categoryId: string, value: string, name: string, date: string, tags?: string[], registeredInCurrentMonth?: boolean, currentMonthOverride?: string }} data
+ * @param {{ recordType: string, value: string, name: string, date: string, tags?: string[], tagIds?: string[], registeredInCurrentMonth?: boolean, currentMonthOverride?: string }} data
  * @param {number} installmentCount
  * @returns {Promise<object[]>} the created records
  */
 async function saveInstallmentGroup(data, installmentCount) {
+  const tagIds = await resolveInputTagIds(data, true);
   const groupId = generateId();
   const created = [];
   let currentMonth = data.date.slice(0, 7);
@@ -141,11 +113,11 @@ async function saveInstallmentGroup(data, installmentCount) {
     const date = `${currentMonth}-${day}`;
     const isFirstAndOverridden = i === 0 && data.registeredInCurrentMonth && data.currentMonthOverride;
     const record = createRecord({
-      categoryId: data.categoryId,
+      recordType: data.recordType,
       value: data.value,
       name: data.name,
       date,
-      tags: data.tags,
+      tagIds,
       ...(isFirstAndOverridden ? { month: data.currentMonthOverride, registeredInCurrentMonth: true } : {}),
       isRecurring: false,
       isInstallment: true,
@@ -158,7 +130,7 @@ async function saveInstallmentGroup(data, installmentCount) {
     currentMonth = incrementMonth(currentMonth);
   }
 
-  return created;
+  return hydrateEntityTagsList(created);
 }
 
 /**
@@ -172,21 +144,30 @@ async function quitarInstallments(groupId, currentMonth) {
   const day = currentMonth.slice(-2) === currentMonth ? '01' : '01'; // always use day 01
   for (const r of futureRecords) {
     const originalDay = r.date.slice(8, 10);
-    const updated = { ...r, month: currentMonth, date: `${currentMonth}-${originalDay}` };
+    const updated = { ...r, month: currentMonth, date: `${currentMonth}-${originalDay}`, updatedAt: new Date().toISOString() };
     await promisify(getStore(STORES.RECORDS, 'readwrite').put(updated));
   }
 }
 
 /**
- * Updates name, value, and categoryId for the given record and all future records
+ * Updates name, value, type, and tags for the given record and all future records
  * in the same installment group (installmentNumber >= record.installmentNumber).
- * @param {object} record - the updated record (already has new name/value/categoryId)
+ * @param {object} record - the updated record (already has new name/value/type/tags)
  */
 async function updateInstallmentFromCurrent(record) {
+  const tagIds = await resolveInputTagIds(record, true);
   const records = await getInstallmentsByGroupId(record.installmentGroupId);
   for (const r of records) {
     if (r.installmentNumber >= record.installmentNumber) {
-      const updated = { ...r, name: record.name, value: record.value, categoryId: record.categoryId };
+      const updated = {
+        ...r,
+        name: record.name,
+        value: record.value,
+        recordType: record.recordType,
+        tagIds,
+        updatedAt: new Date().toISOString(),
+      };
+      delete updated.tags;
       await promisify(getStore(STORES.RECORDS, 'readwrite').put(updated));
     }
   }
@@ -214,13 +195,15 @@ function getAllMonthsWithRecords() {
 async function getAllRecordTags() {
   const records = await getAllRecords();
   const tagSet = new Set();
-  records.forEach(r => (r.tags || []).forEach(t => tagSet.add(t)));
+  records.forEach((record) => (record.tags || []).forEach((tag) => tagSet.add(tag)));
   return [...tagSet].sort();
 }
 
 export {
   getAllRecords,
+  getAllRawRecords,
   getRecordsByMonth,
+  getRawRecordsByMonth,
   getRecordsByCategory,
   getRecurringRecordsByMonth,
   getInstallmentsByMonth,

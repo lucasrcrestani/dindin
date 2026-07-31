@@ -6,35 +6,14 @@ import { parseFormula } from '../utils/formulaUtils.js';
 import { currentMonthKey, formatMonthLabel } from '../utils/dateUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
-/**
- * Filters and groups categories by a search query.
- * @param {object[]} categories
- * @param {string} query
- * @returns {{ expenses: object[], incomes: object[] }}
- */
-function filterCategories(categories, query) {
-  const q = query.toLowerCase().trim();
-  const filtered = q ? categories.filter((c) => c.name.toLowerCase().includes(q)) : categories;
-  return {
-    expenses: filtered.filter((c) => c.recordType === RecordType.EXPENSE),
-    incomes: filtered.filter((c) => c.recordType === RecordType.INCOME),
-  };
-}
-
 function _shouldSuggestCurrentMonth(dateStr, settings) {
   if (!dateStr || !settings?.currentMonth) return false;
   return dateStr.slice(0, 7) > settings.currentMonth && currentMonthKey() === settings.currentMonth;
 }
 
-/**
- * Validates a row data object. Returns a map of field → error message.
- * An empty object means valid.
- * @param {{ categoryId: string, name: string, date: string, rawValue: string, isInstallment: boolean, installmentCount: number }} data
- * @returns {Record<string, string>}
- */
-function validateRowData({ categoryId, name, date, rawValue, isInstallment, installmentCount, tags }) {
+function validateRowData({ recordType, name, date, rawValue, isInstallment, installmentCount, tags }) {
   const errors = {};
-  if (!categoryId) errors.categoryId = 'Selecione uma categoria válida.';
+  if (!recordType) errors.recordType = 'Selecione um tipo válido.';
   if (!name || !name.trim()) errors.name = 'Informe o nome.';
   if (!date) errors.date = 'Informe a data.';
   const parsed = parseFormula(rawValue);
@@ -46,11 +25,6 @@ function validateRowData({ categoryId, name, date, rawValue, isInstallment, inst
   return errors;
 }
 
-/**
- * Positions a dropdown list (position:fixed) anchored below an input element.
- * @param {HTMLElement} list
- * @param {HTMLElement} anchor
- */
 function _positionDropdown(list, anchor) {
   const rect = anchor.getBoundingClientRect();
   list.style.top = rect.bottom + 'px';
@@ -78,7 +52,7 @@ class DindinBulkAddPage extends BaseComponent {
             <thead>
               <tr>
                 <th>#</th>
-                <th>Categoria</th>
+                <th>Tipo</th>
                 <th>Nome / Local</th>
                 <th>Data</th>
                 <th>Valor (R$)</th>
@@ -113,13 +87,13 @@ class DindinBulkAddPage extends BaseComponent {
       row.className = 'bulk-row';
       row.innerHTML = `
         <td class="bulk-row__number"></td>
-        <td class="bulk-col--cat">
-          <div class="autocomplete-wrap">
-            <input type="text" class="bulk-cat-search" placeholder="Buscar categoria..." autocomplete="off" />
-            <input type="hidden" class="bulk-cat-id" />
-            <ul class="autocomplete-list bulk-cat-list"></ul>
-            <span class="form-error bulk-cat-error" style="display:none">Selecione uma categoria v&#225;lida.</span>
-          </div>
+        <td class="bulk-col--type">
+          <select class="bulk-type">
+            <option value="">Selecione</option>
+            <option value="${RecordType.EXPENSE}">Despesa</option>
+            <option value="${RecordType.INCOME}">Receita</option>
+          </select>
+          <span class="form-error bulk-type-error" style="display:none">Selecione um tipo v&#225;lido.</span>
         </td>
         <td class="bulk-col--name">
           <div class="autocomplete-wrap">
@@ -171,16 +145,13 @@ class DindinBulkAddPage extends BaseComponent {
         </td>
       `;
 
-      const catSearch = row.querySelector('.bulk-cat-search');
-      const catId = row.querySelector('.bulk-cat-id');
-      const catList = row.querySelector('.bulk-cat-list');
-      let currentCategoryTags = [];
+      const typeInput = row.querySelector('.bulk-type');
       const tagsContainer = row.querySelector('.bulk-tags-container');
       const tagsInput = row.querySelector('.bulk-tags-input');
       const tagsList = row.querySelector('.bulk-tags-list');
 
       const addRowTag = (value) => {
-        const tag = (value || '').trim();
+        const tag = String(value ?? '').trim();
         if (!tag) return;
         const existing = tagsContainer.querySelectorAll('[data-tag]');
         for (const element of existing) {
@@ -196,55 +167,6 @@ class DindinBulkAddPage extends BaseComponent {
         tagsList.style.display = 'none';
         tagsList.innerHTML = '';
       };
-
-      const renderCategoryList = (query) => {
-        catList.innerHTML = '';
-        const { expenses, incomes } = filterCategories(categories, query);
-        if (expenses.length === 0 && incomes.length === 0) return;
-
-        const appendGroup = (label, cats) => {
-          if (cats.length === 0) return;
-          const groupLi = document.createElement('li');
-          groupLi.className = 'category-search-group';
-          groupLi.textContent = label;
-          catList.appendChild(groupLi);
-          cats.forEach((cat) => {
-            const li = document.createElement('li');
-            li.className = 'autocomplete-item';
-            li.textContent = cat.name;
-            li.addEventListener('mousedown', (event) => {
-              event.preventDefault();
-              catSearch.value = cat.name;
-              catId.value = cat.id;
-              catList.innerHTML = '';
-              const oldTags = currentCategoryTags;
-              const newTags = cat.tags || [];
-              oldTags.forEach((tag) => {
-                if (!newTags.includes(tag)) {
-                  const badge = tagsContainer.querySelector(`[data-tag="${CSS.escape(tag)}"]`);
-                  if (badge) badge.remove();
-                }
-              });
-              newTags.forEach((tag) => addRowTag(tag));
-              currentCategoryTags = [...newTags];
-            });
-            catList.appendChild(li);
-          });
-        };
-
-        appendGroup('Despesas', expenses);
-        appendGroup('Receitas', incomes);
-        _positionDropdown(catList, catSearch);
-      };
-
-      catSearch.addEventListener('focus', () => renderCategoryList(catSearch.value));
-      catSearch.addEventListener('input', () => {
-        catId.value = '';
-        renderCategoryList(catSearch.value);
-      });
-      catSearch.addEventListener('blur', () => {
-        setTimeout(() => { catList.innerHTML = ''; }, 150);
-      });
 
       const nameInput = row.querySelector('.bulk-name');
       const nameList = row.querySelector('.bulk-name-list');
@@ -273,10 +195,16 @@ class DindinBulkAddPage extends BaseComponent {
       const renderRowTagSuggestions = () => {
         const q = tagsInput.value.trim().toLowerCase();
         tagsList.innerHTML = '';
-        if (!q) { tagsList.style.display = 'none'; return; }
+        if (!q) {
+          tagsList.style.display = 'none';
+          return;
+        }
         const existingSet = new Set([...tagsContainer.querySelectorAll('[data-tag]')].map((element) => element.dataset.tag));
         const matches = allRecordTags.filter((tag) => tag.toLowerCase().includes(q) && !existingSet.has(tag)).slice(0, 8);
-        if (matches.length === 0) { tagsList.style.display = 'none'; return; }
+        if (matches.length === 0) {
+          tagsList.style.display = 'none';
+          return;
+        }
         matches.forEach((tag) => {
           const li = document.createElement('li');
           li.className = 'autocomplete-item';
@@ -317,13 +245,13 @@ class DindinBulkAddPage extends BaseComponent {
       });
 
       tagsInput.addEventListener('blur', () => {
+        if (tagsInput.value.trim()) addRowTag(tagsInput.value);
         setTimeout(() => { tagsList.style.display = 'none'; tagsList.innerHTML = ''; }, 150);
       });
       tagsContainer.addEventListener('click', () => tagsInput.focus());
 
       const tableWrap = wrapper.querySelector('.bulk-table-wrap');
       const onReposition = () => {
-        if (catList.children.length > 0) _positionDropdown(catList, catSearch);
         if (nameList.children.length > 0) _positionDropdown(nameList, nameInput);
         if (tagsList.style.display !== 'none' && tagsList.children.length > 0) _positionDropdown(tagsList, tagsContainer);
       };
@@ -400,7 +328,7 @@ class DindinBulkAddPage extends BaseComponent {
       }
 
       return {
-        categoryId: row.querySelector('.bulk-cat-id').value,
+        recordType: row.querySelector('.bulk-type').value,
         name: row.querySelector('.bulk-name').value.trim(),
         date: row.querySelector('.bulk-date').value,
         rawValue: row.querySelector('.bulk-value').value.trim(),
@@ -413,7 +341,7 @@ class DindinBulkAddPage extends BaseComponent {
     };
 
     const applyRowErrors = (row, errors) => {
-      row.querySelector('.bulk-cat-error').style.display = errors.categoryId ? '' : 'none';
+      row.querySelector('.bulk-type-error').style.display = errors.recordType ? '' : 'none';
       row.querySelector('.bulk-name-error').style.display = errors.name ? '' : 'none';
       row.querySelector('.bulk-date-error').style.display = errors.date ? '' : 'none';
       row.querySelector('.bulk-value-error').style.display = errors.value ? '' : 'none';
@@ -441,8 +369,7 @@ class DindinBulkAddPage extends BaseComponent {
       console.group(`[Bulk Add] Saving ${rows.length} record(s)`);
       for (const row of rows) {
         const data = collectRowData(row);
-        const catName = categories.find((category) => category.id === data.categoryId)?.name ?? data.categoryId;
-        console.log(`  ${data.name} | ${data.rawValue} | ${data.date} | category: ${catName} | tags: ${data.tags.join(', ')} | recurring: ${data.isRecurring} | installment: ${data.isInstallment}${data.isInstallment ? ` (${data.installmentCount}x)` : ''}`);
+        console.log(`  ${data.name} | ${data.rawValue} | ${data.date} | type: ${data.recordType} | tags: ${data.tags.join(', ')} | recurring: ${data.isRecurring} | installment: ${data.isInstallment}${data.isInstallment ? ` (${data.installmentCount}x)` : ''}`);
         const month = data.useCurrentMonth ? _settings.currentMonth : data.date.slice(0, 7);
         if (!_settings.currentMonth) {
           _settings = await saveSettings({ ..._settings, currentMonth: month });
@@ -451,7 +378,7 @@ class DindinBulkAddPage extends BaseComponent {
         if (data.isInstallment) {
           await saveInstallmentGroup(
             {
-              categoryId: data.categoryId,
+              recordType: data.recordType,
               value: data.rawValue,
               name: data.name,
               date: data.date,
@@ -463,7 +390,7 @@ class DindinBulkAddPage extends BaseComponent {
           );
         } else {
           await saveRecord({
-            categoryId: data.categoryId,
+            recordType: data.recordType,
             value: data.rawValue,
             name: data.name,
             date: data.date,
@@ -487,6 +414,7 @@ class DindinBulkAddPage extends BaseComponent {
     });
 
     appendRow();
+    void categories;
     this.replaceContent(wrapper);
   }
 }
@@ -495,16 +423,6 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-bulk-ad
   customElements.define('dindin-bulk-add-page', DindinBulkAddPage);
 }
 
-/**
- * Render the bulk add page into the given container.
- * @param {HTMLElement} container
- * @param {{
- *   categories: object[],
- *   commonRecordNames: string[],
- *   settings: object,
- *   onBack: () => void
- * }} options
- */
 function renderBulkAddPage(container, { categories, commonRecordNames, settings, onBack }) {
   const page = document.createElement('dindin-bulk-add-page');
   page.data = { categories, commonRecordNames, settings, onBack };
@@ -518,4 +436,4 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-export { renderBulkAddPage, validateRowData, filterCategories };
+export { renderBulkAddPage, validateRowData };

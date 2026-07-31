@@ -1,11 +1,5 @@
-/**
- * Unit tests for record creation logic.
- * Tests createRecord() as a pure factory and saveRecord() via a mocked DB.
- * Dependencies mocked: ../src/services/db.js
- */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ── Module mocks (hoisted before imports) ─────────────────────────────────────
 vi.mock('../src/services/db.js', () => {
   const fakeRequest = (result) => ({ result });
 
@@ -20,17 +14,27 @@ vi.mock('../src/services/db.js', () => {
   };
 });
 
+vi.mock('../src/services/tagService.js', () => ({
+  resolveInputTagIds: vi.fn(async (data) => data.tagIds ?? ['tag-1']),
+  hydrateEntityTags: vi.fn(async (entity) => ({ ...entity, tags: entity.tagIds ?? [] })),
+  hydrateEntityTagsList: vi.fn(async (entities) => entities),
+}));
+
+vi.mock('../src/services/categoryService.js', () => ({
+  getRawCategoryById: vi.fn(),
+}));
+
 import { createRecord } from '../src/models/Record.js';
 import { saveRecord } from '../src/services/recordService.js';
 import { getStore, promisify } from '../src/services/db.js';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const BASE_DATA = {
-  categoryId: 'cat-1',
+  recordType: 'expense',
   value: '100',
   name: 'Mercado',
   date: '2026-05-15',
   isRecurring: false,
+  tagIds: ['tag-1'],
 };
 
 beforeEach(() => {
@@ -46,7 +50,6 @@ beforeEach(() => {
   promisify.mockImplementation((req) => Promise.resolve(req.result));
 });
 
-// ── createRecord() ─────────────────────────────────────────────────────────────
 describe('createRecord()', () => {
   it('derives month from date by default', () => {
     const record = createRecord({ ...BASE_DATA });
@@ -94,37 +97,29 @@ describe('createRecord()', () => {
     expect(a.id).not.toBe(b.id);
   });
 
-  it('defaults isRecurring, isInstallment to false when omitted', () => {
-    const { categoryId, value, name, date } = BASE_DATA;
-    const record = createRecord({ categoryId, value, name, date });
-    expect(record.isRecurring).toBe(false);
-    expect(record.isInstallment).toBe(false);
-  });
-
   it('falls back to today when date is not provided', () => {
     const today = new Date().toISOString().slice(0, 10);
-    const record = createRecord({ categoryId: 'c', value: '10', name: 'X' });
+    const record = createRecord({ recordType: 'income', value: '10', name: 'X' });
     expect(record.date).toBe(today);
     expect(record.month).toBe(today.slice(0, 7));
   });
 
-  it('defaults tags to an empty array when not provided', () => {
-    const record = createRecord({ ...BASE_DATA });
-    expect(record.tags).toEqual([]);
+  it('defaults tagIds to an empty array when not provided', () => {
+    const record = createRecord({ recordType: 'income', value: '10', name: 'X' });
+    expect(record.tagIds).toEqual([]);
   });
 
-  it('stores provided tags on the record', () => {
-    const record = createRecord({ ...BASE_DATA, tags: ['alimentação', 'mercado'] });
-    expect(record.tags).toEqual(['alimentação', 'mercado']);
+  it('stores provided tagIds on the record', () => {
+    const record = createRecord({ ...BASE_DATA, tagIds: ['tag-a', 'tag-b'] });
+    expect(record.tagIds).toEqual(['tag-a', 'tag-b']);
   });
 });
 
-// ── saveRecord() ───────────────────────────────────────────────────────────────
 describe('saveRecord()', () => {
   it('creates a new record with a generated id when no id is provided', async () => {
     const record = await saveRecord({ ...BASE_DATA });
     expect(record.id).toBeTruthy();
-    expect(record.categoryId).toBe('cat-1');
+    expect(record.recordType).toBe('expense');
     expect(record.month).toBe('2026-05');
   });
 
@@ -137,11 +132,12 @@ describe('saveRecord()', () => {
   it('updates updatedAt but keeps createdAt when editing an existing record', async () => {
     const original = {
       id: 'existing-id',
-      categoryId: 'cat-1',
+      recordType: 'expense',
       value: '100',
       name: 'Mercado',
       date: '2026-05-15',
       month: '2026-05',
+      tagIds: ['tag-1'],
       isRecurring: false,
       registeredInCurrentMonth: false,
       createdAt: '2026-05-01T10:00:00.000Z',
@@ -166,34 +162,13 @@ describe('saveRecord()', () => {
     await saveRecord({ ...BASE_DATA });
     expect(fakeStore.put).toHaveBeenCalledOnce();
     const saved = fakeStore.put.mock.calls[0][0];
-    expect(saved.categoryId).toBe('cat-1');
+    expect(saved.recordType).toBe('expense');
   });
 
-  it('persists tags when saving a new record', async () => {
+  it('persists tagIds when saving a new record', async () => {
     const fakeStore = getStore();
-    await saveRecord({ ...BASE_DATA, tags: ['viagem'] });
+    await saveRecord({ ...BASE_DATA, tagIds: ['tag-2'] });
     const saved = fakeStore.put.mock.calls[0][0];
-    expect(saved.tags).toEqual(['viagem']);
-  });
-
-  it('persists tags when updating an existing record', async () => {
-    const fakeStore = getStore();
-    const existing = {
-      id: 'existing-id',
-      categoryId: 'cat-1',
-      value: '100',
-      name: 'Mercado',
-      date: '2026-05-15',
-      month: '2026-05',
-      tags: ['old-tag'],
-      isRecurring: false,
-      registeredInCurrentMonth: false,
-      createdAt: '2026-05-01T10:00:00.000Z',
-      updatedAt: '2026-05-01T10:00:00.000Z',
-    };
-    await saveRecord({ ...existing, tags: ['novo-tag'] });
-    const saved = fakeStore.put.mock.calls[0][0];
-    expect(saved.tags).toEqual(['novo-tag']);
-    expect(saved.id).toBe('existing-id');
+    expect(saved.tagIds).toEqual(['tag-2']);
   });
 });

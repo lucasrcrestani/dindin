@@ -1,8 +1,9 @@
 ﻿import { formatCurrency, formatMonthDisplay, capitalize, formatShortDate } from '../utils/formatters.js';
-import { computeCategoryBalances, computeGeneralBalance } from '../utils/balanceUtils.js';
+import { computeCategoryBalances, computeGeneralBalance, getCategoryRecords, findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { createCategoryCard } from './categoryCard.js';
 import RecordType from '../models/RecordType.js';
 import { BaseComponent } from './baseComponent.js';
+import { parseFormula } from '../utils/formulaUtils.js';
 
 class DindinGeneralBalance extends BaseComponent {
   render() {
@@ -20,7 +21,7 @@ function buildGeneralBalanceView({ categories, records, monthKey, categoryAverag
     ...b,
     historicalAverage: categoryAverages?.get(b.category.id) ?? null,
   }));
-  const general = computeGeneralBalance(categoryBalances);
+  const general = computeGeneralBalance(categoryBalances, records);
 
   const expenseBalances = categoryBalances.filter((b) => b.category.recordType === RecordType.EXPENSE);
   const incomeBalances  = categoryBalances.filter((b) => b.category.recordType === RecordType.INCOME);
@@ -35,6 +36,11 @@ function buildGeneralBalanceView({ categories, records, monthKey, categoryAverag
     ? records.reduce((latest, r) => (r.date > latest.date ? r : latest))
     : null;
   const lastDateLabel = lastRecord ? formatShortDate(lastRecord.date) : null;
+  const lastValueLabel = lastRecord ? formatCurrency(parseFormula(lastRecord.value) ?? 0) : null;
+  const lastNameLabel = lastRecord?.name ?? 'Sem nome';
+  const lastCategoryLabel = lastRecord
+    ? (findBestMatchingCategory(lastRecord, categories)?.name ?? 'Sem categoria')
+    : null;
 
   console.group(`[General Balance] ${monthLabel}`);
   console.log('Receita Prevista:', formatCurrency(general.income));
@@ -79,7 +85,7 @@ function buildGeneralBalanceView({ categories, records, monthKey, categoryAverag
         <span>Receita Real: ${formatCurrency(general.actualIncome)}</span>
         <span>Despesas: ${formatCurrency(general.expenses)}</span>
       </div>
-      ${lastDateLabel ? `<p class="balance-summary__last-record">Último registro: ${lastDateLabel}</p>` : ''}
+      ${lastDateLabel ? `<p class="balance-summary__last-record">Último registro: ${lastDateLabel} - ${lastNameLabel} (${lastValueLabel}) - ${lastCategoryLabel}</p>` : ''}
     </div>
   `;
 
@@ -185,14 +191,15 @@ function buildSection(title, balances, onCategoryClick, categoryMonthlyTotals, r
     const monthlyHistory = categoryMonthlyTotals?.get(b.category.id) ?? null;
     const card = createCategoryCard(b, monthlyHistory);
     // Compute effective tags: category tags ∪ record tags for this category
-    const recordTags = (records ?? [])
-      .filter(r => r.categoryId === b.category.id)
-      .flatMap(r => r.tags ?? []);
+    const recordTags = getCategoryRecords(b.category, records ?? []).flatMap((record) => record.tags ?? []);
     const effectiveTags = [...new Set([...(b.category.tags ?? []), ...recordTags])];
     card.dataset.tags = JSON.stringify(effectiveTags);
     if (onCategoryClick) {
       card.classList.add('category-card--clickable');
-      card.addEventListener('click', () => onCategoryClick(b));
+      card.addEventListener('click', (event) => {
+        console.log('[GeneralBalance] category card clicked', b.category?.name, event.target?.nodeName);
+        onCategoryClick(b);
+      });
     }
     section.appendChild(card);
   });

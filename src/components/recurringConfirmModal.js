@@ -1,5 +1,6 @@
 import { parseFormula } from '../utils/formulaUtils.js';
 import { formatMonthLabel } from '../utils/dateUtils.js';
+import { findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
 class DindinRecurringConfirmModal extends BaseComponent {
@@ -15,7 +16,6 @@ class DindinRecurringConfirmModal extends BaseComponent {
 
   render() {
     const { records = [], categories = [], newMonth, onConfirm, onCancel } = this.data;
-    const categoryMap = new Map(categories.map((category) => [category.id, category]));
     const newMonthLabel = formatMonthLabel(newMonth);
     if (!this._items) {
       this._items = records.map((record) => ({ ...record }));
@@ -48,12 +48,12 @@ class DindinRecurringConfirmModal extends BaseComponent {
       this.close();
       onCancel?.();
     });
-    this.onclick = (event) => {
-      if (event.target === this) {
+    this.addEventListener('click', (event) => {
+      if (event.composedPath()[0] === this) {
         this.close();
         onCancel?.();
       }
-    };
+    });
 
     const renderList = () => {
       const list = wrapper.querySelector('#rc-list');
@@ -65,7 +65,7 @@ class DindinRecurringConfirmModal extends BaseComponent {
       }
 
       this._items.forEach((item, index) => {
-        const category = categoryMap.get(item.categoryId);
+        const category = findBestMatchingCategory(item, categories);
         const li = document.createElement('li');
         li.className = 'recurring-confirm__item';
         li.dataset.idx = index;

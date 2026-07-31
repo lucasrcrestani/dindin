@@ -1,6 +1,7 @@
 import { formatCurrency } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
 import RecordType from '../models/RecordType.js';
+import { findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
 /**
@@ -10,12 +11,11 @@ import { BaseComponent } from './baseComponent.js';
  * @param {Map<string, object>} categoryMap
  * @returns {{ expenses: object[], incomes: object[] }}
  */
-function splitRecordsByType(records, categoryMap) {
+function splitRecordsByType(records) {
   const expenses = [];
   const incomes = [];
   for (const r of records) {
-    const category = categoryMap.get(r.categoryId);
-    if (category?.recordType === RecordType.EXPENSE) {
+    if (r.recordType === RecordType.EXPENSE) {
       expenses.push(r);
     } else {
       incomes.push(r);
@@ -33,19 +33,18 @@ class DindinInstallmentRecordsCard extends BaseComponent {
     }
 
     const sorted = [...records].sort((a, b) => (a.installmentNumber ?? 0) - (b.installmentNumber ?? 0));
-    const categoryMap = new Map(categories.map((category) => [category.id, category]));
     const groupVisibleCount = new Map();
     for (const record of sorted) {
       const groupId = record.installmentGroupId ?? record.id;
       groupVisibleCount.set(groupId, (groupVisibleCount.get(groupId) ?? 0) + 1);
     }
     const quitarRendered = new Set();
-    const { expenses, incomes } = splitRecordsByType(sorted, categoryMap);
+    const { expenses, incomes } = splitRecordsByType(sorted);
 
     console.group('[Installment Records Card]');
     console.log('Total:', records.length, 'installment(s)');
-    expenses.forEach((record) => console.log('  Expense:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
-    incomes.forEach((record) => console.log('  Income:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    expenses.forEach((record) => console.log('  Expense:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    incomes.forEach((record) => console.log('  Income:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
     if (expenses.length) console.log('  Total Despesas:', formatCurrency(expenses.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     if (incomes.length) console.log('  Total Receitas:', formatCurrency(incomes.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     console.groupEnd();
@@ -57,8 +56,8 @@ class DindinInstallmentRecordsCard extends BaseComponent {
         <span class="installment-card__title">Parcelas do Mês</span>
         <span class="installment-card__count">${records.length} parcela${records.length !== 1 ? 's' : ''}</span>
       </div>
-      ${buildInstallmentSection(expenses, 'Despesas', 'Total Despesas', categoryMap, groupVisibleCount, quitarRendered)}
-      ${buildInstallmentSection(incomes, 'Receitas', 'Total Receitas', categoryMap, groupVisibleCount, quitarRendered)}
+      ${buildInstallmentSection(expenses, 'Despesas', 'Total Despesas', categories, groupVisibleCount, quitarRendered)}
+      ${buildInstallmentSection(incomes, 'Receitas', 'Total Receitas', categories, groupVisibleCount, quitarRendered)}
     `;
 
     card.querySelectorAll('.btn-edit-installment').forEach((button) => {
@@ -93,11 +92,11 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-install
   customElements.define('dindin-installment-records-card', DindinInstallmentRecordsCard);
 }
 
-function buildInstallmentRows(group, categoryMap, groupVisibleCount, quitarRendered) {
+function buildInstallmentRows(group, categories, groupVisibleCount, quitarRendered) {
   return group.map((record) => {
-    const category = categoryMap.get(record.categoryId);
+    const category = findBestMatchingCategory(record, categories);
     const value = parseFormula(String(record.value)) ?? 0;
-    const isExpense = category?.recordType === RecordType.EXPENSE;
+    const isExpense = record.recordType === RecordType.EXPENSE;
 
     const typeIcon = isExpense ? '↑' : '↓';
     const typeClass = isExpense
@@ -132,10 +131,10 @@ function buildInstallmentRows(group, categoryMap, groupVisibleCount, quitarRende
   }).join('');
 }
 
-function buildInstallmentSection(group, label, footerLabel, categoryMap, groupVisibleCount, quitarRendered) {
+function buildInstallmentSection(group, label, footerLabel, categories, groupVisibleCount, quitarRendered) {
   if (group.length === 0) return '';
   const subtotal = group.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0);
-  const rows = buildInstallmentRows(group, categoryMap, groupVisibleCount, quitarRendered);
+  const rows = buildInstallmentRows(group, categories, groupVisibleCount, quitarRendered);
   return `
     <div class="installment-card__section">
       <div class="installment-card__section-header">${label}</div>

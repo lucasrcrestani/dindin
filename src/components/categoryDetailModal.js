@@ -1,4 +1,4 @@
-import { deleteRecord } from '../services/recordService.js';
+import { deleteRecord, getRecordsByCategory } from '../services/recordService.js';
 import { openAddRecordModal } from './addRecordModal.js';
 import { formatCurrency, formatMonthDisplay, capitalize } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
@@ -7,19 +7,33 @@ import { BaseComponent } from './baseComponent.js';
 class DindinCategoryDetailModal extends BaseComponent {
   connectedCallback() {
     super.connectedCallback();
-    requestAnimationFrame(() => this.classList.add('modal-overlay--visible'));
+    console.log('[CategoryDetailModal] connected');
+    this._parentNode = this.parentNode;
+    this._connectedAt = Date.now();
+    requestAnimationFrame(() => {
+      console.log('[CategoryDetailModal] showing');
+      this.classList.add('modal-overlay--visible');
+    });
+  }
+
+  disconnectedCallback() {
+    console.log('[CategoryDetailModal] disconnected from parent', this._connectedAt ? Date.now() - this._connectedAt : 'n/a');
   }
 
   close() {
+    console.log('[CategoryDetailModal] closing');
+    if (this._isClosing) return;
+    this._isClosing = true;
     this.classList.remove('modal-overlay--visible');
-    this.addEventListener('transitionend', () => this.remove(), { once: true });
+    this.classList.add('modal-overlay--closing');
+    this.remove();
+    console.log('[CategoryDetailModal] removed');
   }
 
-  render() {
+  async render() {
     const {
       category,
       month,
-      records = [],
       allCategories = [],
       commonRecordNames = [],
       settings,
@@ -31,14 +45,18 @@ class DindinCategoryDetailModal extends BaseComponent {
       return;
     }
 
-    if (!this._categoryRecords) {
-      this._categoryRecords = records.filter((record) => record.categoryId === category.id);
+    if (!this._categoryRecordsLoaded) {
+      const matchedRecords = await getRecordsByCategory(category.id);
+      this._categoryRecords = matchedRecords.filter((record) => record.month === month);
+      this._categoryRecordsLoaded = true;
     }
 
     const monthLabel = capitalize(formatMonthDisplay(month));
     this.className = 'modal-overlay';
+    this._isClosing = false;
 
     const wrapper = document.createElement('div');
+    wrapper.className = 'modal-overlay__content';
     wrapper.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-detail-title">
         <div class="modal__header">
@@ -55,10 +73,17 @@ class DindinCategoryDetailModal extends BaseComponent {
       </div>
     `;
 
-    wrapper.querySelector('.modal__close').addEventListener('click', () => this.close());
-    this.onclick = (event) => {
-      if (event.target === this) this.close();
-    };
+    wrapper.querySelector('.modal__close').addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.close();
+    });
+    this.addEventListener('click', (event) => {
+      const path = event.composedPath();
+      if (path[0] === this) {
+        event.stopPropagation();
+        this.close();
+      }
+    });
 
     const renderList = () => {
       const listContainer = wrapper.querySelector('#detail-record-list');
@@ -86,9 +111,8 @@ class DindinCategoryDetailModal extends BaseComponent {
       sorted.forEach((record) => {
         const li = document.createElement('li');
         li.className = 'record-list__item';
-        const effectiveTags = [...new Set([...(category.tags ?? []), ...(record.tags ?? [])])];
-        const tagsHtml = effectiveTags.length
-          ? `<span class="record-list__tags">${effectiveTags.map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`).join('')}</span>`
+        const tagsHtml = record.tags?.length
+          ? `<span class="record-list__tags">${record.tags.map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`).join('')}</span>`
           : '';
         li.innerHTML = `
           <span class="record-list__date">${formatDate(record.date)}</span>
@@ -105,11 +129,13 @@ class DindinCategoryDetailModal extends BaseComponent {
             categories: allCategories,
             commonRecordNames,
             settings,
-            initial: record,
+            initial: { ...record, lockedTags: category.tags ?? [] },
+            preselectedRecordType: category.recordType,
+            inheritedTags: category.tags ?? [],
+            lockRecordType: true,
             onSaved: (updated) => {
               this._categoryRecords = this._categoryRecords.map((item) => item.id === updated.id ? updated : item);
               renderList();
-              if (onChanged) onChanged();
             },
           });
         });
@@ -120,7 +146,6 @@ class DindinCategoryDetailModal extends BaseComponent {
           await deleteRecord(record.id);
           this._categoryRecords = this._categoryRecords.filter((item) => item.id !== record.id);
           renderList();
-          if (onChanged) onChanged();
         });
 
         ul.appendChild(li);
@@ -144,16 +169,21 @@ class DindinCategoryDetailModal extends BaseComponent {
         categories: allCategories,
         commonRecordNames,
         settings,
-        preselectedCategoryId: category.id,
+        preselectedRecordType: category.recordType,
+        inheritedTags: category.tags ?? [],
+        lockRecordType: true,
         onSaved: (record) => {
           this._categoryRecords = [...this._categoryRecords, record];
           renderList();
-          if (onChanged) onChanged();
         },
       });
     });
 
     this.replaceContent(wrapper);
+    requestAnimationFrame(() => {
+      this.classList.add('modal-overlay--visible');
+      wrapper.classList.add('modal-overlay__content--visible');
+    });
     renderList();
   }
 }
@@ -175,9 +205,12 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-categor
  * }} options
  */
 function openCategoryDetailModal({ category, month, records, allCategories, commonRecordNames, settings, onChanged }) {
+  console.log('[CategoryDetailModal] opening', category?.name, 'month', month);
   const modal = document.createElement('dindin-category-detail-modal');
   modal.data = { category, month, records, allCategories, commonRecordNames, settings, onChanged };
-  document.getElementById('modals').appendChild(modal);
+  const parent = document.getElementById('modals');
+  parent.appendChild(modal);
+  console.log('[CategoryDetailModal] appended to container', parent.childElementCount);
 }
 
 function formatDate(dateStr) {

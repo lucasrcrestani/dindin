@@ -1,6 +1,7 @@
 import { formatCurrency } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
 import RecordType from '../models/RecordType.js';
+import { findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
 /**
@@ -10,12 +11,11 @@ import { BaseComponent } from './baseComponent.js';
  * @param {Map<string, object>} categoryMap
  * @returns {{ expenses: object[], incomes: object[] }}
  */
-function splitRecordsByType(records, categoryMap) {
+function splitRecordsByType(records) {
   const expenses = [];
   const incomes = [];
   for (const r of records) {
-    const category = categoryMap.get(r.categoryId);
-    if (category?.recordType === RecordType.EXPENSE) {
+    if (r.recordType === RecordType.EXPENSE) {
       expenses.push(r);
     } else {
       incomes.push(r);
@@ -32,13 +32,12 @@ class DindinRecurringRecordsCard extends BaseComponent {
       return;
     }
 
-    const categoryMap = new Map(categories.map((category) => [category.id, category]));
-    const { expenses, incomes } = splitRecordsByType(records, categoryMap);
+    const { expenses, incomes } = splitRecordsByType(records);
 
     console.group('[Recurring Records Card]');
     console.log('Total:', records.length, 'record(s)');
-    expenses.forEach((record) => console.log('  Expense:', record.name, '|', categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
-    incomes.forEach((record) => console.log('  Income:', record.name, '|', categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    expenses.forEach((record) => console.log('  Expense:', record.name, '|', findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    incomes.forEach((record) => console.log('  Income:', record.name, '|', findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
     if (expenses.length) console.log('  Total Despesas:', formatCurrency(expenses.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     if (incomes.length) console.log('  Total Receitas:', formatCurrency(incomes.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     console.groupEnd();
@@ -50,8 +49,8 @@ class DindinRecurringRecordsCard extends BaseComponent {
         <span class="recurring-card__title">Registros Recorrentes</span>
         <span class="recurring-card__count">${records.length} registro${records.length !== 1 ? 's' : ''}</span>
       </div>
-      ${buildSection(expenses, 'Despesas', 'Total Despesas', categoryMap)}
-      ${buildSection(incomes, 'Receitas', 'Total Receitas', categoryMap)}
+      ${buildSection(expenses, 'Despesas', 'Total Despesas', categories)}
+      ${buildSection(incomes, 'Receitas', 'Total Receitas', categories)}
     `;
 
     this.className = 'recurring-card-host';
@@ -63,11 +62,11 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-recurri
   customElements.define('dindin-recurring-records-card', DindinRecurringRecordsCard);
 }
 
-function buildRows(group, categoryMap) {
+function buildRows(group, categories) {
   return group.map((record) => {
-    const category = categoryMap.get(record.categoryId);
+    const category = findBestMatchingCategory(record, categories);
     const value = parseFormula(String(record.value)) ?? 0;
-    const isExpense = category?.recordType === RecordType.EXPENSE;
+    const isExpense = record.recordType === RecordType.EXPENSE;
     const typeIcon = isExpense ? '↑' : '↓';
     const typeClass = isExpense ? 'recurring-card__type--expense' : 'recurring-card__type--income';
     return `
@@ -81,10 +80,10 @@ function buildRows(group, categoryMap) {
   }).join('');
 }
 
-function buildSection(group, label, footerLabel, categoryMap) {
+function buildSection(group, label, footerLabel, categories) {
   if (group.length === 0) return '';
   const subtotal = group.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0);
-  const rows = buildRows(group, categoryMap);
+  const rows = buildRows(group, categories);
   return `
     <div class="recurring-card__section">
       <div class="recurring-card__section-header">${label}</div>

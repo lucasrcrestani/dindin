@@ -5,7 +5,7 @@
       "name": "Alimentação",
       "recordType": "expense",
       "idealValue": 500,
-      "tags": [],
+      "tags": ["essencial"],
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-01-01T00:00:00.000Z"
     },
@@ -14,7 +14,7 @@
       "name": "Salário",
       "recordType": "income",
       "idealValue": 5000,
-      "tags": [],
+      "tags": ["salario"],
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-01-01T00:00:00.000Z"
     }

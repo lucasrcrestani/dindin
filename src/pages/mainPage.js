@@ -146,10 +146,11 @@ async function renderMain() {
           for (const r of confirmedRecords) {
             const newDate = `${next}-01`;
             await saveRecord(createRecord({
-              categoryId: r.categoryId,
+              recordType: r.recordType,
               value: r.value,
               name: r.name,
               date: newDate,
+              tagIds: r.tagIds,
               isRecurring: true,
             }));
           }

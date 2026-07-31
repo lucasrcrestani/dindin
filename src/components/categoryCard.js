@@ -36,7 +36,17 @@ class DindinCategoryCard extends BaseComponent {
     this.classList.toggle('category-card--expanded', this._expanded && hasHistory);
     this.dataset.categoryId = category.id;
 
-    const container = document.createElement('div');
+    const container = document.createElement('span');
+    container.style.justifyContent = 'space-between';
+    container.style.alignItems = 'center';
+    container.style.width = '100%';
+    container.style.display = 'flex';
+    container.classList.add('category-card');
+    container.style.padding = '0';
+    this._contentRoot.style.display = 'flex';
+    this._contentRoot.style.justifyContent = 'space-between';
+    this._contentRoot.style.alignItems = 'center';
+    this._contentRoot.style.width = '100%';
 
     const averageBadge = historicalAverage !== null && historicalAverage !== undefined
       ? `<span class="category-card__average">Média: ${formatCurrency(historicalAverage)}</span>`
