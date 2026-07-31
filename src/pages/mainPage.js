@@ -80,13 +80,14 @@ async function renderMain() {
       onChanged: renderMain,
     }),
   });
+  const balanceRoot = balanceWrapper.shadowRoot ?? balanceWrapper;
 
   // Recurring records card — inserted right after the balance summary
   if (monthKey) {
     const recurringRecords = await getRecurringRecordsByMonth(monthKey);
     const recurringCard = renderRecurringRecordsCard({ records: recurringRecords, categories: _categories });
     if (recurringCard) {
-      const balanceSummary = balanceWrapper.querySelector('.balance-summary');
+      const balanceSummary = balanceRoot.querySelector('.balance-summary');
       balanceSummary.insertAdjacentElement('afterend', recurringCard);
     }
 
@@ -113,17 +114,17 @@ async function renderMain() {
       },
     });
     if (installmentCard) {
-      const anchor = balanceWrapper.querySelector('.balance-summary');
+      const anchor = balanceRoot.querySelector('.balance-summary');
       anchor.insertAdjacentElement('afterend', installmentCard);
     }
   }
 
   // Bottom bar events
-  main.querySelector('#btn-history')?.addEventListener('click', () => {
+  balanceRoot.querySelector('#btn-history')?.addEventListener('click', () => {
     openHistoryModal({ categories: _categories, settings: _settings });
   });
 
-  main.querySelector('#btn-finish-month')?.addEventListener('click', async () => {
+  balanceRoot.querySelector('#btn-finish-month')?.addEventListener('click', async () => {
     if (!_settings.currentMonth) {
       alert('Nenhum mês ativo para encerrar.');
       return;

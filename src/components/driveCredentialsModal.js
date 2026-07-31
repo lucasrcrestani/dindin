@@ -1,17 +1,25 @@
 import { saveCredentials } from '../services/driveService.js';
+import { BaseComponent } from './baseComponent.js';
 
-/**
- * Opens a modal asking the user to enter their Google Cloud credentials.
- * Resolves with the saved credentials object when the user confirms,
- * or rejects if the user cancels.
- *
- * @returns {Promise<{ clientId: string, apiKey: string, appId: string }>}
- */
-function openDriveCredentialsModal() {
-  return new Promise((resolve, reject) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
+class DindinDriveCredentialsModal extends BaseComponent {
+  connectedCallback() {
+    super.connectedCallback();
+    requestAnimationFrame(() => this.classList.add('modal-overlay--visible'));
+  }
+
+  close(error) {
+    this.classList.remove('modal-overlay--visible');
+    this.addEventListener('transitionend', () => this.remove(), { once: true });
+    if (error) {
+      this.data.onReject?.(error);
+    }
+  }
+
+  render() {
+    this.className = 'modal-overlay';
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-creds-title">
         <div class="modal__header">
           <h2 id="modal-creds-title" class="modal__title">Configurar credenciais do Google</h2>
@@ -46,43 +54,52 @@ function openDriveCredentialsModal() {
       </div>
     `;
 
-    document.getElementById('modals').appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('modal-overlay--visible'));
-
-    const close = (err) => {
-      overlay.classList.remove('modal-overlay--visible');
-      overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-      if (err) reject(err);
+    const cancel = () => this.close(new Error('Cancelado pelo usuário.'));
+    wrapper.querySelector('.modal__close').addEventListener('click', cancel);
+    wrapper.querySelector('#btn-creds-cancel').addEventListener('click', cancel);
+    this.onclick = (event) => {
+      if (event.target === this) cancel();
     };
 
-    overlay.querySelector('.modal__close').addEventListener('click', () =>
-      close(new Error('Cancelado pelo usuário.')),
-    );
-    overlay.querySelector('#btn-creds-cancel').addEventListener('click', () =>
-      close(new Error('Cancelado pelo usuário.')),
-    );
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close(new Error('Cancelado pelo usuário.'));
-    });
-
-    overlay.querySelector('#form-creds').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const clientId = overlay.querySelector('#creds-client-id').value.trim();
-      const apiKey   = overlay.querySelector('#creds-api-key').value.trim();
-      const appId    = overlay.querySelector('#creds-app-id').value.trim();
-      const errEl    = overlay.querySelector('#creds-error');
+    wrapper.querySelector('#form-creds').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const clientId = wrapper.querySelector('#creds-client-id').value.trim();
+      const apiKey = wrapper.querySelector('#creds-api-key').value.trim();
+      const appId = wrapper.querySelector('#creds-app-id').value.trim();
+      const errorElement = wrapper.querySelector('#creds-error');
 
       if (!clientId || !apiKey || !appId) {
-        errEl.textContent = 'Preencha todos os campos.';
-        errEl.style.display = 'block';
+        errorElement.textContent = 'Preencha todos os campos.';
+        errorElement.style.display = 'block';
         return;
       }
 
       saveCredentials({ clientId, apiKey, appId });
-      overlay.classList.remove('modal-overlay--visible');
-      overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-      resolve({ clientId, apiKey, appId });
+      this.classList.remove('modal-overlay--visible');
+      this.addEventListener('transitionend', () => this.remove(), { once: true });
+      this.data.onResolve?.({ clientId, apiKey, appId });
     });
+
+    this.replaceContent(wrapper);
+  }
+}
+
+if (typeof customElements !== 'undefined' && !customElements.get('dindin-drive-credentials-modal')) {
+  customElements.define('dindin-drive-credentials-modal', DindinDriveCredentialsModal);
+}
+
+/**
+ * Opens a modal asking the user to enter their Google Cloud credentials.
+ * Resolves with the saved credentials object when the user confirms,
+ * or rejects if the user cancels.
+ *
+ * @returns {Promise<{ clientId: string, apiKey: string, appId: string }>}
+ */
+function openDriveCredentialsModal() {
+  return new Promise((resolve, reject) => {
+    const modal = document.createElement('dindin-drive-credentials-modal');
+    modal.data = { onResolve: resolve, onReject: reject };
+    document.getElementById('modals').appendChild(modal);
   });
 }
 

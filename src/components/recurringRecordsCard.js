@@ -1,6 +1,7 @@
 import { formatCurrency } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
 import RecordType from '../models/RecordType.js';
+import { BaseComponent } from './baseComponent.js';
 
 /**
  * Splits records into expenses and incomes using the provided category map.
@@ -23,6 +24,81 @@ function splitRecordsByType(records, categoryMap) {
   return { expenses, incomes };
 }
 
+class DindinRecurringRecordsCard extends BaseComponent {
+  render() {
+    const { records = [], categories = [] } = this.data;
+    if (!records.length) {
+      this.replaceContent();
+      return;
+    }
+
+    const categoryMap = new Map(categories.map((category) => [category.id, category]));
+    const { expenses, incomes } = splitRecordsByType(records, categoryMap);
+
+    console.group('[Recurring Records Card]');
+    console.log('Total:', records.length, 'record(s)');
+    expenses.forEach((record) => console.log('  Expense:', record.name, '|', categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    incomes.forEach((record) => console.log('  Income:', record.name, '|', categoryMap.get(record.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    if (expenses.length) console.log('  Total Despesas:', formatCurrency(expenses.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
+    if (incomes.length) console.log('  Total Receitas:', formatCurrency(incomes.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
+    console.groupEnd();
+
+    const card = document.createElement('div');
+    card.className = 'recurring-card';
+    card.innerHTML = `
+      <div class="recurring-card__header">
+        <span class="recurring-card__title">Registros Recorrentes</span>
+        <span class="recurring-card__count">${records.length} registro${records.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${buildSection(expenses, 'Despesas', 'Total Despesas', categoryMap)}
+      ${buildSection(incomes, 'Receitas', 'Total Receitas', categoryMap)}
+    `;
+
+    this.className = 'recurring-card-host';
+    this.replaceContent(card);
+  }
+}
+
+if (typeof customElements !== 'undefined' && !customElements.get('dindin-recurring-records-card')) {
+  customElements.define('dindin-recurring-records-card', DindinRecurringRecordsCard);
+}
+
+function buildRows(group, categoryMap) {
+  return group.map((record) => {
+    const category = categoryMap.get(record.categoryId);
+    const value = parseFormula(String(record.value)) ?? 0;
+    const isExpense = category?.recordType === RecordType.EXPENSE;
+    const typeIcon = isExpense ? '↑' : '↓';
+    const typeClass = isExpense ? 'recurring-card__type--expense' : 'recurring-card__type--income';
+    return `
+      <li class="recurring-card__item">
+        <span class="recurring-card__type ${typeClass}" aria-hidden="true">${typeIcon}</span>
+        <span class="recurring-card__name">${escapeHtml(record.name)}</span>
+        <span class="recurring-card__category">${escapeHtml(category?.name ?? '—')}</span>
+        <span class="recurring-card__value">${formatCurrency(value)}</span>
+      </li>
+    `;
+  }).join('');
+}
+
+function buildSection(group, label, footerLabel, categoryMap) {
+  if (group.length === 0) return '';
+  const subtotal = group.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0);
+  const rows = buildRows(group, categoryMap);
+  return `
+    <div class="recurring-card__section">
+      <div class="recurring-card__section-header">${label}</div>
+      <ul class="recurring-card__list">
+        ${rows}
+      </ul>
+      <div class="recurring-card__section-footer">
+        <span>${footerLabel}</span>
+        <span class="recurring-card__total">${formatCurrency(subtotal)}</span>
+      </div>
+    </div>
+  `;
+}
+
 /**
  * Render a read-only card listing the recurring records for the current month.
  * Records are grouped into two blocks: Despesas (expenses) then Receitas (incomes).
@@ -36,68 +112,8 @@ function splitRecordsByType(records, categoryMap) {
  */
 function renderRecurringRecordsCard({ records, categories }) {
   if (!records || records.length === 0) return null;
-
-  const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const { expenses, incomes } = splitRecordsByType(records, categoryMap);
-
-  console.group('[Recurring Records Card]');
-  console.log('Total:', records.length, 'record(s)');
-  expenses.forEach((r) => console.log('  Expense:', r.name, '|', categoryMap.get(r.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(r.value)) ?? 0)));
-  incomes.forEach((r) => console.log('  Income:', r.name, '|', categoryMap.get(r.categoryId)?.name ?? '—', '|', formatCurrency(parseFormula(String(r.value)) ?? 0)));
-  if (expenses.length) console.log('  Total Despesas:', formatCurrency(expenses.reduce((s, r) => s + (parseFormula(String(r.value)) ?? 0), 0)));
-  if (incomes.length) console.log('  Total Receitas:', formatCurrency(incomes.reduce((s, r) => s + (parseFormula(String(r.value)) ?? 0), 0)));
-  console.groupEnd();
-
-  function buildRows(group) {
-    return group.map((r) => {
-      const category = categoryMap.get(r.categoryId);
-      const value = parseFormula(String(r.value)) ?? 0;
-      const isExpense = category?.recordType === RecordType.EXPENSE;
-      const typeIcon = isExpense ? '↑' : '↓';
-      const typeClass = isExpense ? 'recurring-card__type--expense' : 'recurring-card__type--income';
-      return `
-        <li class="recurring-card__item">
-          <span class="recurring-card__type ${typeClass}" aria-hidden="true">${typeIcon}</span>
-          <span class="recurring-card__name">${escapeHtml(r.name)}</span>
-          <span class="recurring-card__category">${escapeHtml(category?.name ?? '—')}</span>
-          <span class="recurring-card__value">${formatCurrency(value)}</span>
-        </li>
-      `;
-    }).join('');
-  }
-
-  function buildSection(group, label, footerLabel) {
-    if (group.length === 0) return '';
-    const subtotal = group.reduce((sum, r) => sum + (parseFormula(String(r.value)) ?? 0), 0);
-    const rows = buildRows(group);
-    return `
-      <div class="recurring-card__section">
-        <div class="recurring-card__section-header">${label}</div>
-        <ul class="recurring-card__list">
-          ${rows}
-        </ul>
-        <div class="recurring-card__section-footer">
-          <span>${footerLabel}</span>
-          <span class="recurring-card__total">${formatCurrency(subtotal)}</span>
-        </div>
-      </div>
-    `;
-  }
-
-  const expensesSection = buildSection(expenses, 'Despesas', 'Total Despesas');
-  const incomesSection = buildSection(incomes, 'Receitas', 'Total Receitas');
-
-  const card = document.createElement('div');
-  card.className = 'recurring-card';
-  card.innerHTML = `
-    <div class="recurring-card__header">
-      <span class="recurring-card__title">Registros Recorrentes</span>
-      <span class="recurring-card__count">${records.length} registro${records.length !== 1 ? 's' : ''}</span>
-    </div>
-    ${expensesSection}
-    ${incomesSection}
-  `;
-
+  const card = document.createElement('dindin-recurring-records-card');
+  card.data = { records, categories };
   return card;
 }
 

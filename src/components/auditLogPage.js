@@ -1,7 +1,93 @@
 ﻿import { getAllCategories } from '../services/categoryService.js';
 import { getAllRecords } from '../services/recordService.js';
+import { BaseComponent } from './baseComponent.js';
 
 const ENTITY_LABEL = { record: 'Registro', category: 'Categoria' };
+
+class DindinAuditLogPage extends BaseComponent {
+  async render() {
+    const { onBack } = this.data;
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+      <div class="audit-log-page">
+        <div class="page-header">
+          <button class="btn btn--secondary" id="btn-audit-back">&#8592; Voltar</button>
+          <h2 class="page-title">Hist&#243;rico de Cria&#231;&#245;es</h2>
+          <div></div>
+        </div>
+        <div class="audit-filters" id="audit-filters">
+          <div class="audit-filter-group">
+            <span class="audit-filter-label">Tipo:</span>
+            <button class="audit-filter-btn audit-filter-btn--active" data-filter="type" data-value="all">Todos</button>
+            <button class="audit-filter-btn" data-filter="type" data-value="record">Registros</button>
+            <button class="audit-filter-btn" data-filter="type" data-value="category">Categorias</button>
+          </div>
+        </div>
+        <div class="audit-list" id="audit-list"></div>
+      </div>
+    `;
+
+    wrapper.querySelector('#btn-audit-back').addEventListener('click', () => onBack?.());
+
+    const [categories, records] = await Promise.all([getAllCategories(), getAllRecords()]);
+    const categoryMap = Object.fromEntries(categories.map((category) => [category.id, category.name]));
+    const allEntries = [
+      ...categories.map((category) => ({
+        entityType: 'category',
+        name: category.name,
+        createdAt: category.createdAt ?? new Date().toISOString(),
+      })),
+      ...records.map((record) => ({
+        entityType: 'record',
+        name: record.name,
+        createdAt: record.createdAt,
+        categoryName: categoryMap[record.categoryId] ?? null,
+      })),
+    ].sort((left, right) => (left.createdAt > right.createdAt ? -1 : 1));
+
+    let activeType = 'all';
+    const renderList = (entries) => {
+      const list = wrapper.querySelector('#audit-list');
+
+      if (!entries.length) {
+        list.innerHTML = '<p class="text-muted text-center audit-empty">Nenhum item encontrado.</p>';
+        return;
+      }
+
+      const groups = groupByDate(entries);
+      list.innerHTML = '';
+      groups.forEach(({ label, items }) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'audit-date-group';
+        groupEl.innerHTML = `<div class="audit-date-separator">${escapeHtml(label)}</div>`;
+        items.forEach((entry) => groupEl.appendChild(createEntryEl(entry)));
+        list.appendChild(groupEl);
+      });
+    };
+
+    const applyFilters = () => {
+      const filtered = activeType === 'all' ? allEntries : allEntries.filter((entry) => entry.entityType === activeType);
+      renderList(filtered);
+    };
+
+    wrapper.querySelector('#audit-filters').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-filter]');
+      if (!button) return;
+      wrapper.querySelectorAll('[data-filter="type"]').forEach((item) => item.classList.remove('audit-filter-btn--active'));
+      button.classList.add('audit-filter-btn--active');
+      activeType = button.dataset.value;
+      applyFilters();
+    });
+
+    this.replaceContent(wrapper);
+    applyFilters();
+  }
+}
+
+if (typeof customElements !== 'undefined' && !customElements.get('dindin-audit-log-page')) {
+  customElements.define('dindin-audit-log-page', DindinAuditLogPage);
+}
 
 /**
  * Render the creation history page into the given container.
@@ -9,85 +95,10 @@ const ENTITY_LABEL = { record: 'Registro', category: 'Categoria' };
  * @param {{ onBack: () => void }} callbacks
  */
 async function renderAuditLogPage(container, { onBack }) {
-  container.innerHTML = `
-    <div class="audit-log-page">
-      <div class="page-header">
-        <button class="btn btn--secondary" id="btn-audit-back">&#8592; Voltar</button>
-        <h2 class="page-title">Hist&#243;rico de Cria&#231;&#245;es</h2>
-        <div></div>
-      </div>
-      <div class="audit-filters" id="audit-filters">
-        <div class="audit-filter-group">
-          <span class="audit-filter-label">Tipo:</span>
-          <button class="audit-filter-btn audit-filter-btn--active" data-filter="type" data-value="all">Todos</button>
-          <button class="audit-filter-btn" data-filter="type" data-value="record">Registros</button>
-          <button class="audit-filter-btn" data-filter="type" data-value="category">Categorias</button>
-        </div>
-      </div>
-      <div class="audit-list" id="audit-list"></div>
-    </div>
-  `;
-
-  container.querySelector('#btn-audit-back').addEventListener('click', onBack);
-
-  const [categories, records] = await Promise.all([getAllCategories(), getAllRecords()]);
-
-  const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c.name]));
-
-  const allEntries = [
-    ...categories.map((c) => ({
-      entityType: 'category',
-      name: c.name,
-      createdAt: c.createdAt ?? new Date().toISOString(),
-    })),
-    ...records.map((r) => ({
-      entityType: 'record',
-      name: r.name,
-      createdAt: r.createdAt,
-      categoryName: categoryMap[r.categoryId] ?? null,
-    })),
-  ].sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
-
-  let activeType = 'all';
-
-  function applyFilters() {
-    const filtered =
-      activeType === 'all' ? allEntries : allEntries.filter((e) => e.entityType === activeType);
-    renderList(filtered);
-  }
-
-  container.querySelector('#audit-filters').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-filter]');
-    if (!btn) return;
-    container.querySelectorAll('[data-filter="type"]').forEach((b) =>
-      b.classList.remove('audit-filter-btn--active'),
-    );
-    btn.classList.add('audit-filter-btn--active');
-    activeType = btn.dataset.value;
-    applyFilters();
-  });
-
-  function renderList(entries) {
-    const list = container.querySelector('#audit-list');
-
-    if (!entries.length) {
-      list.innerHTML = `<p class="text-muted text-center audit-empty">Nenhum item encontrado.</p>`;
-      return;
-    }
-
-    const groups = groupByDate(entries);
-    list.innerHTML = '';
-
-    groups.forEach(({ label, items }) => {
-      const groupEl = document.createElement('div');
-      groupEl.className = 'audit-date-group';
-      groupEl.innerHTML = `<div class="audit-date-separator">${escapeHtml(label)}</div>`;
-      items.forEach((entry) => groupEl.appendChild(createEntryEl(entry)));
-      list.appendChild(groupEl);
-    });
-  }
-
-  applyFilters();
+  const page = document.createElement('dindin-audit-log-page');
+  page.data = { onBack };
+  container.innerHTML = '';
+  container.appendChild(page);
 }
 
 function createEntryEl(entry) {

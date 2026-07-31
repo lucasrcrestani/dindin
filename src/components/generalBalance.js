@@ -2,8 +2,20 @@
 import { computeCategoryBalances, computeGeneralBalance } from '../utils/balanceUtils.js';
 import { createCategoryCard } from './categoryCard.js';
 import RecordType from '../models/RecordType.js';
+import { BaseComponent } from './baseComponent.js';
 
-function renderGeneralBalance(container, { categories, records, monthKey, categoryAverages, categoryMonthlyTotals, onCategoryClick }) {
+class DindinGeneralBalance extends BaseComponent {
+  render() {
+    const wrapper = buildGeneralBalanceView(this.data);
+    this.replaceContent(wrapper);
+  }
+}
+
+if (typeof customElements !== 'undefined' && !customElements.get('dindin-general-balance')) {
+  customElements.define('dindin-general-balance', DindinGeneralBalance);
+}
+
+function buildGeneralBalanceView({ categories, records, monthKey, categoryAverages, categoryMonthlyTotals, onCategoryClick }) {
   const categoryBalances = computeCategoryBalances(categories, records).map((b) => ({
     ...b,
     historicalAverage: categoryAverages?.get(b.category.id) ?? null,
@@ -131,6 +143,11 @@ function renderGeneralBalance(container, { categories, records, monthKey, catego
       isExpanded = !isExpanded;
       expandBtn.textContent = isExpanded ? '▴ Recolher histórico' : '▾ Expandir histórico';
       wrapper.querySelectorAll('.category-card--has-history').forEach((card) => {
+        if (typeof card.setExpanded === 'function') {
+          card.setExpanded(isExpanded);
+          return;
+        }
+
         card.classList.toggle('category-card--expanded', isExpanded);
         const btn = card.querySelector('.category-card__expand-btn');
         if (btn) btn.textContent = isExpanded ? '▴' : '▾';
@@ -146,10 +163,15 @@ function renderGeneralBalance(container, { categories, records, monthKey, catego
   `;
   wrapper.appendChild(bottomBar);
 
-  container.innerHTML = '';
-  container.appendChild(wrapper);
-
   return wrapper;
+}
+
+function renderGeneralBalance(container, { categories, records, monthKey, categoryAverages, categoryMonthlyTotals, onCategoryClick }) {
+  const element = document.createElement('dindin-general-balance');
+  element.data = { categories, records, monthKey, categoryAverages, categoryMonthlyTotals, onCategoryClick };
+  container.innerHTML = '';
+  container.appendChild(element);
+  return element;
 }
 
 function buildSection(title, balances, onCategoryClick, categoryMonthlyTotals, records) {
