@@ -929,16 +929,28 @@
 }
 
 .recurring-card__item {
-  display: grid;
-  grid-template-columns: auto 1fr 1fr auto;
-  align-items: center;
-  gap: var(--spacing-xs) var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 
 .recurring-card__item:last-child {
   border-bottom: none;
+}
+
+.recurring-card__item-main {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto;
+  align-items: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+}
+
+.recurring-card__actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
 }
 
 .recurring-card__type {
@@ -964,12 +976,16 @@
   text-overflow: ellipsis;
 }
 
-.recurring-card__category {
+.recurring-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.recurring-card__no-tags {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .recurring-card__value {
@@ -1257,6 +1273,62 @@
   margin-top: var(--spacing-xl);
 }
 
+.audit-search-row {
+  padding-bottom: var(--spacing-xs);
+}
+
+.audit-search {
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.audit-search:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.audit-entry__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.audit-entry__value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.audit-entry__formula {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.audit-entry__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.audit-entry__edit {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+}
+
 /* ─── Installment Records Card ────────────────────── */
 .installment-card {
   background: var(--color-surface);
@@ -1332,12 +1404,16 @@
   text-overflow: ellipsis;
 }
 
-.installment-card__category {
+.installment-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.installment-card__no-tags {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .installment-card__badge {

@@ -1,7 +1,6 @@
 import { formatCurrency } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
 import RecordType from '../models/RecordType.js';
-import { findBestMatchingCategory } from '../utils/balanceUtils.js';
 import { BaseComponent } from './baseComponent.js';
 
 /**
@@ -26,7 +25,7 @@ function splitRecordsByType(records) {
 
 class DindinInstallmentRecordsCard extends BaseComponent {
   render() {
-    const { records = [], categories = [], onEdit, onQuitar } = this.data;
+    const { records = [], onEdit, onQuitar } = this.data;
     if (!records.length) {
       this.replaceContent();
       return;
@@ -43,8 +42,8 @@ class DindinInstallmentRecordsCard extends BaseComponent {
 
     console.group('[Installment Records Card]');
     console.log('Total:', records.length, 'installment(s)');
-    expenses.forEach((record) => console.log('  Expense:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
-    incomes.forEach((record) => console.log('  Income:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, findBestMatchingCategory(record, categories)?.name ?? '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    expenses.forEach((record) => console.log('  Expense:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, (record.tags ?? []).join(', ') || '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
+    incomes.forEach((record) => console.log('  Income:', record.name, `| Installment ${record.installmentNumber}/${record.installmentTotal} |`, (record.tags ?? []).join(', ') || '—', '|', formatCurrency(parseFormula(String(record.value)) ?? 0)));
     if (expenses.length) console.log('  Total Despesas:', formatCurrency(expenses.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     if (incomes.length) console.log('  Total Receitas:', formatCurrency(incomes.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0)));
     console.groupEnd();
@@ -56,8 +55,8 @@ class DindinInstallmentRecordsCard extends BaseComponent {
         <span class="installment-card__title">Parcelas do Mês</span>
         <span class="installment-card__count">${records.length} parcela${records.length !== 1 ? 's' : ''}</span>
       </div>
-      ${buildInstallmentSection(expenses, 'Despesas', 'Total Despesas', categories, groupVisibleCount, quitarRendered)}
-      ${buildInstallmentSection(incomes, 'Receitas', 'Total Receitas', categories, groupVisibleCount, quitarRendered)}
+      ${buildInstallmentSection(expenses, 'Despesas', 'Total Despesas', groupVisibleCount, quitarRendered)}
+      ${buildInstallmentSection(incomes, 'Receitas', 'Total Receitas', groupVisibleCount, quitarRendered)}
     `;
 
     card.querySelectorAll('.btn-edit-installment').forEach((button) => {
@@ -92,9 +91,8 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-install
   customElements.define('dindin-installment-records-card', DindinInstallmentRecordsCard);
 }
 
-function buildInstallmentRows(group, categories, groupVisibleCount, quitarRendered) {
+function buildInstallmentRows(group, groupVisibleCount, quitarRendered) {
   return group.map((record) => {
-    const category = findBestMatchingCategory(record, categories);
     const value = parseFormula(String(record.value)) ?? 0;
     const isExpense = record.recordType === RecordType.EXPENSE;
 
@@ -113,12 +111,14 @@ function buildInstallmentRows(group, categories, groupVisibleCount, quitarRender
       ? `<button type="button" class="btn btn--sm btn--danger btn-quitar-installment" data-group-id="${escapeHtml(groupId)}">Quitar</button>`
       : '';
 
+    const tagBadges = (record.tags ?? []).map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`).join('');
+
     return `
       <li class="installment-card__item" data-id="${escapeHtml(record.id)}" data-group-id="${escapeHtml(groupId)}">
         <div class="installment-card__item-main">
           <span class="installment-card__type ${typeClass}" aria-hidden="true">${typeIcon}</span>
           <span class="installment-card__name">${escapeHtml(record.name)}</span>
-          <span class="installment-card__category">${escapeHtml(category?.name ?? '—')}</span>
+          <span class="installment-card__tags">${tagBadges || '<span class="installment-card__no-tags">—</span>'}</span>
           <span class="installment-card__badge">Parcela ${record.installmentNumber}/${record.installmentTotal}</span>
           <span class="installment-card__value">${formatCurrency(value)}</span>
         </div>
@@ -131,10 +131,10 @@ function buildInstallmentRows(group, categories, groupVisibleCount, quitarRender
   }).join('');
 }
 
-function buildInstallmentSection(group, label, footerLabel, categories, groupVisibleCount, quitarRendered) {
+function buildInstallmentSection(group, label, footerLabel, groupVisibleCount, quitarRendered) {
   if (group.length === 0) return '';
   const subtotal = group.reduce((sum, record) => sum + (parseFormula(String(record.value)) ?? 0), 0);
-  const rows = buildInstallmentRows(group, categories, groupVisibleCount, quitarRendered);
+  const rows = buildInstallmentRows(group, groupVisibleCount, quitarRendered);
   return `
     <div class="installment-card__section">
       <div class="installment-card__section-header">${label}</div>
@@ -162,10 +162,10 @@ function buildInstallmentSection(group, label, footerLabel, categories, groupVis
  * }} options
  * @returns {HTMLElement|null}
  */
-function renderInstallmentRecordsCard({ records, categories, onEdit, onQuitar }) {
+function renderInstallmentRecordsCard({ records, onEdit, onQuitar }) {
   if (!records || records.length === 0) return null;
   const card = document.createElement('dindin-installment-records-card');
-  card.data = { records, categories, onEdit, onQuitar };
+  card.data = { records, onEdit, onQuitar };
   return card;
 }
 

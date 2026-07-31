@@ -515,4 +515,54 @@ test.describe('DinDin — E2E Feature Tests', () => {
 
     assertNoErrors(logs);
   });
+
+  // ── audit log search and edit ─────────────────────────────────────────────
+  test('audit log — search by name filters entries and edit button opens record modal', async ({ page }) => {
+    const logs = collectLogs(page);
+
+    await seedDatabase(page, FIXTURE);
+    await waitForBootstrap(page);
+
+    await page.click('#btn-audit-log');
+    await page.waitForSelector('.audit-log-page', { state: 'visible' });
+
+    // All entries are visible initially
+    const allEntries = page.locator('.audit-entry');
+    const totalCount = await allEntries.count();
+    expect(totalCount).toBeGreaterThan(0);
+
+    // Search by partial name — "Supermercado" should match only that record
+    await page.fill('#audit-search', 'Supermercado');
+    await expect(page.locator('.audit-entry')).toHaveCount(1);
+    await expect(page.locator('.audit-entry .audit-entry__name')).toContainText('Supermercado Extra');
+
+    // Clear search — all entries return
+    await page.fill('#audit-search', '');
+    await expect(page.locator('.audit-entry')).toHaveCount(totalCount);
+
+    // Search by value "3500" — only the income record matches
+    await page.fill('#audit-search', '3500');
+    const valueFiltered = page.locator('.audit-entry');
+    const valueCount = await valueFiltered.count();
+    expect(valueCount).toBeGreaterThan(0);
+    await expect(valueFiltered.first().locator('.audit-entry__value')).toBeVisible();
+
+    // Clear search
+    await page.fill('#audit-search', '');
+
+    // Edit button is visible on record entries
+    const editBtn = page.locator('.audit-entry__edit').first();
+    await expect(editBtn).toBeVisible();
+
+    // Click edit — record modal should open
+    await editBtn.click();
+    await page.waitForSelector('#modal-rec-title', { state: 'visible' });
+    await expect(page.locator('#modal-rec-title')).toContainText('Editar Lançamento');
+
+    // Close without saving
+    await page.click('.modal__close');
+    await page.waitForSelector('#modal-rec-title', { state: 'detached' });
+
+    assertNoErrors(logs);
+  });
 });

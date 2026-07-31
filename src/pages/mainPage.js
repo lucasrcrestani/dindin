@@ -85,7 +85,18 @@ async function renderMain() {
   // Recurring records card — inserted right after the balance summary
   if (monthKey) {
     const recurringRecords = await getRecurringRecordsByMonth(monthKey);
-    const recurringCard = renderRecurringRecordsCard({ records: recurringRecords, categories: _categories });
+    const recurringCard = renderRecurringRecordsCard({
+      records: recurringRecords,
+      onEdit: (record) => {
+        openAddRecordModal({
+          categories: _categories,
+          commonRecordNames,
+          settings: _settings,
+          initial: record,
+          onSaved: () => renderMain(),
+        });
+      },
+    });
     if (recurringCard) {
       const balanceSummary = balanceRoot.querySelector('.balance-summary');
       balanceSummary.insertAdjacentElement('afterend', recurringCard);
@@ -95,7 +106,6 @@ async function renderMain() {
     const installmentRecords = await getInstallmentsByMonth(monthKey);
     const installmentCard = renderInstallmentRecordsCard({
       records: installmentRecords,
-      categories: _categories,
       onEdit: (record) => {
         openAddRecordModal({
           categories: _categories,

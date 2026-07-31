@@ -1,6 +1,12 @@
 ﻿import { getAllCategories } from '../services/categoryService.js';
 import { getAllRecords } from '../services/recordService.js';
+import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
+import { getSettings } from '../services/settingsService.js';
+import { getTagMapById } from '../services/tagService.js';
 import { findBestMatchingCategory } from '../utils/balanceUtils.js';
+import { parseFormula } from '../utils/formulaUtils.js';
+import { formatCurrency } from '../utils/formatters.js';
+import { openAddRecordModal } from './addRecordModal.js';
 import { BaseComponent } from './baseComponent.js';
 
 const ENTITY_LABEL = { record: 'Registro', category: 'Categoria' };
@@ -18,6 +24,15 @@ class DindinAuditLogPage extends BaseComponent {
           <div></div>
         </div>
         <div class="audit-filters" id="audit-filters">
+          <div class="audit-search-row">
+            <input
+              id="audit-search"
+              class="audit-search"
+              type="search"
+              placeholder="Buscar por nome, valor ou tag..."
+              autocomplete="off"
+            />
+          </div>
           <div class="audit-filter-group">
             <span class="audit-filter-label">Tipo:</span>
             <button class="audit-filter-btn audit-filter-btn--active" data-filter="type" data-value="all">Todos</button>
@@ -31,22 +46,71 @@ class DindinAuditLogPage extends BaseComponent {
 
     wrapper.querySelector('#btn-audit-back').addEventListener('click', () => onBack?.());
 
-    const [categories, records] = await Promise.all([getAllCategories(), getAllRecords()]);
+    const [categories, records, tagMap, commonRecordNames, settings] = await Promise.all([
+      getAllCategories(),
+      getAllRecords(),
+      getTagMapById(),
+      getAllCommonRecordNames(),
+      getSettings(),
+    ]);
+
     const allEntries = [
       ...categories.map((category) => ({
         entityType: 'category',
         name: category.name,
         createdAt: category.createdAt ?? new Date().toISOString(),
       })),
-      ...records.map((record) => ({
-        entityType: 'record',
-        name: record.name,
-        createdAt: record.createdAt,
-        categoryName: findBestMatchingCategory(record, categories)?.name ?? null,
-      })),
+      ...records.map((record) => {
+        const tags = (record.tagIds ?? []).map((id) => tagMap.get(id)?.name ?? id);
+        const computedValue = parseFormula(record.value);
+        const isFormula = typeof record.value === 'string' && record.value.trim() !== String(computedValue);
+        return {
+          entityType: 'record',
+          name: record.name,
+          createdAt: record.createdAt,
+          categoryName: findBestMatchingCategory(record, categories)?.name ?? null,
+          record,
+          tags,
+          rawValue: String(record.value ?? ''),
+          computedValue,
+          isFormula,
+        };
+      }),
     ].sort((left, right) => (left.createdAt > right.createdAt ? -1 : 1));
 
     let activeType = 'all';
+    let searchQuery = '';
+
+    const matchesSearch = (entry) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      if (entry.name.toLowerCase().includes(q)) return true;
+      if (entry.entityType === 'record') {
+        if (entry.rawValue.toLowerCase().includes(q)) return true;
+        if (entry.computedValue !== null && String(entry.computedValue).includes(q)) return true;
+        if (entry.tags.some((tag) => tag.toLowerCase().includes(q))) return true;
+      }
+      return false;
+    };
+
+    const openEdit = async (entry) => {
+      const commonNames = commonRecordNames.map((e) => e.name);
+      openAddRecordModal({
+        categories,
+        commonRecordNames: commonNames,
+        settings,
+        initial: {
+          ...entry.record,
+          tags: entry.tags,
+          lockedTags: [],
+        },
+        onSaved: async () => {
+          console.log('[AuditLog] Registro editado a partir do histórico:', entry.record.id);
+          await this.render();
+        },
+      });
+    };
+
     const renderList = (entries) => {
       const list = wrapper.querySelector('#audit-list');
 
@@ -61,13 +125,21 @@ class DindinAuditLogPage extends BaseComponent {
         const groupEl = document.createElement('div');
         groupEl.className = 'audit-date-group';
         groupEl.innerHTML = `<div class="audit-date-separator">${escapeHtml(label)}</div>`;
-        items.forEach((entry) => groupEl.appendChild(createEntryEl(entry)));
+        items.forEach((entry) => {
+          const el = createEntryEl(entry);
+          if (entry.entityType === 'record') {
+            el.querySelector('.audit-entry__edit')?.addEventListener('click', () => openEdit(entry));
+          }
+          groupEl.appendChild(el);
+        });
         list.appendChild(groupEl);
       });
     };
 
     const applyFilters = () => {
-      const filtered = activeType === 'all' ? allEntries : allEntries.filter((entry) => entry.entityType === activeType);
+      const filtered = allEntries.filter(
+        (entry) => (activeType === 'all' || entry.entityType === activeType) && matchesSearch(entry)
+      );
       renderList(filtered);
     };
 
@@ -77,6 +149,11 @@ class DindinAuditLogPage extends BaseComponent {
       wrapper.querySelectorAll('[data-filter="type"]').forEach((item) => item.classList.remove('audit-filter-btn--active'));
       button.classList.add('audit-filter-btn--active');
       activeType = button.dataset.value;
+      applyFilters();
+    });
+
+    wrapper.querySelector('#audit-search').addEventListener('input', (event) => {
+      searchQuery = event.target.value.trim();
       applyFilters();
     });
 
@@ -112,6 +189,23 @@ function createEntryEl(entry) {
       ? `<span class="audit-entry__subtitle">${escapeHtml(entry.categoryName)}</span>`
       : '';
 
+  let valueHtml = '';
+  let tagsHtml = '';
+  let actionsHtml = '';
+
+  if (entry.entityType === 'record') {
+    const valueLabel = entry.computedValue !== null ? formatCurrency(entry.computedValue) : escapeHtml(entry.rawValue);
+    const formulaHint = entry.isFormula ? `<span class="audit-entry__formula">(${escapeHtml(entry.rawValue)})</span>` : '';
+    valueHtml = `<div class="audit-entry__value">${valueLabel}${formulaHint}</div>`;
+
+    if (entry.tags.length > 0) {
+      const chips = entry.tags.map((tag) => `<span class="tag-badge">${escapeHtml(tag)}</span>`).join('');
+      tagsHtml = `<div class="audit-entry__tags">${chips}</div>`;
+    }
+
+    actionsHtml = `<button class="btn btn--secondary btn--sm audit-entry__edit" aria-label="Editar lançamento">✏️</button>`;
+  }
+
   el.innerHTML = `
     <div class="audit-entry__icon">&#10133;</div>
     <div class="audit-entry__body">
@@ -120,8 +214,13 @@ function createEntryEl(entry) {
         <span class="audit-badge audit-badge--${entry.entityType}">${escapeHtml(entityLabel)}</span>
       </div>
       ${subtitle}
+      ${valueHtml}
+      ${tagsHtml}
     </div>
-    <div class="audit-entry__time">${escapeHtml(time)}</div>
+    <div class="audit-entry__side">
+      <div class="audit-entry__time">${escapeHtml(time)}</div>
+      ${actionsHtml}
+    </div>
   `;
 
   return el;

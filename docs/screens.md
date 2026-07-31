@@ -277,8 +277,19 @@ Accessible from the settings or menu (full-page view replacing the main view).
 
 * Shows a chronological history of all record and category changes (created, updated, deleted).
 * Entries are grouped by date: **Hoje**, **Ontem**, or a formatted date label.
-* **Filter tabs**: All / Lançamentos / Categorias.
-* Each entry shows: action type, entity name (or category name for records), and timestamp.
+* **Search bar** — text input at the top of the filters section. Filters entries by:
+  * Record or category **name** (substring match).
+  * Record **value** — matches against the raw formula string (e.g. `50+7`) and the computed numeric result.
+  * Record **tags** — matches if any tag label contains the search query.
+* **Filter tabs**: All / Lançamentos / Categorias. Combined with the search bar.
+* Each **record** entry shows:
+  * Name and entity badge.
+  * Category name (subtitle).
+  * Computed value (e.g. R$ 57,00); if the value is a formula, the raw formula is shown alongside in parentheses.
+  * Tags as chips.
+  * Timestamp.
+  * **✏️ edit button** — opens the Record modal pre-filled; after saving, the list re-renders automatically.
+* Each **category** entry shows: name, entity badge, and timestamp.
 * **Limpar histórico** button — clears all audit entries after confirmation.
 
 ---
