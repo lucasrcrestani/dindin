@@ -9,6 +9,7 @@ import { openFilePicker } from '../services/pickerService.js';
 import { openDriveCredentialsModal } from './driveCredentialsModal.js';
 import { renderDriveSyncButton } from './driveSyncButton.js';
 import { BaseComponent } from './baseComponent.js';
+import { parseOFX, mapTransactionsToBulkRows } from '../services/ofxImportService.js';
 
 class DindinSettingsModal extends BaseComponent {
   connectedCallback() {
@@ -51,12 +52,15 @@ class DindinSettingsModal extends BaseComponent {
               <label>Exportar / Importar dados</label>
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
                 <button type="button" class="btn btn--secondary" id="btn-cfg-import-csv">Importar CSV</button>
+                <button type="button" class="btn btn--secondary" id="btn-cfg-import-ofx">Importar OFX</button>
                 <button type="button" class="btn btn--secondary" id="btn-cfg-export-json">Exportar JSON</button>
                 <button type="button" class="btn btn--secondary" id="btn-cfg-import-json">Importar JSON</button>
               </div>
               <input type="file" id="cfg-csv-file" accept=".csv" style="display:none" />
+              <input type="file" id="cfg-ofx-file" accept=".ofx,.qfx" style="display:none" />
               <input type="file" id="cfg-json-file" accept=".json" style="display:none" />
               <p id="cfg-csv-error" class="form-error" style="display:none"></p>
+              <p id="cfg-ofx-error" class="form-error" style="display:none"></p>
               <p id="cfg-json-error" class="form-error" style="display:none"></p>
             </div>
             <div class="form-group">
@@ -312,6 +316,29 @@ class DindinSettingsModal extends BaseComponent {
           window.dispatchEvent(new CustomEvent('dindin:reload'));
         },
       });
+    });
+
+    wrapper.querySelector('#btn-cfg-import-ofx').addEventListener('click', () => {
+      wrapper.querySelector('#cfg-ofx-file').click();
+    });
+
+    wrapper.querySelector('#cfg-ofx-file').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const errorEl = wrapper.querySelector('#cfg-ofx-error');
+      errorEl.style.display = 'none';
+      try {
+        const text = await file.text();
+        const transactions = parseOFX(text);
+        const rows = mapTransactionsToBulkRows(transactions);
+        console.log('[OFX Import] Transações importadas:', rows.length);
+        this.close();
+        window.dispatchEvent(new CustomEvent('dindin:ofx-bulk-add', { detail: { rows } }));
+      } catch (error) {
+        errorEl.textContent = `Erro ao ler OFX: ${error.message}`;
+        errorEl.style.display = 'block';
+        event.target.value = '';
+      }
     });
 
     wrapper.querySelector('#form-settings').addEventListener('submit', async (event) => {

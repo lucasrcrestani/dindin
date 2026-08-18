@@ -6,7 +6,9 @@ import { initGoogleAuth, getStoredToken, startAutoSync } from '../../src/service
 import { loadPickerApi } from '../../src/services/pickerService.js';
 import { renderDriveSyncButton } from '../../src/components/driveSyncButton.js';
 import { getSettings } from '../../src/services/settingsService.js';
-import { migrateCategoryCreatedAt } from '../../src/services/categoryService.js';
+import { migrateCategoryCreatedAt, getAllCategories } from '../../src/services/categoryService.js';
+import { getAllCommonRecordNames } from '../../src/services/commonRecordNameService.js';
+import { renderBulkAddPage } from '../../src/components/bulkAddPage.js';
 
 // ── Google API callbacks (must be on window; called by the async script tags) ──
 window.onGapiLoad = () => {
@@ -42,6 +44,19 @@ async function bootstrap() {
     });
 
     window.addEventListener('dindin:reload', () => renderMain());
+
+    window.addEventListener('dindin:ofx-bulk-add', async (e) => {
+      const { rows } = e.detail;
+      const [settings, categories, commonRecordNameEntries] = await Promise.all([
+        getSettings(),
+        getAllCategories(),
+        getAllCommonRecordNames(),
+      ]);
+      const commonRecordNames = commonRecordNameEntries.map((entry) => entry.name);
+      const main = document.getElementById('app-main');
+      renderBulkAddPage(main, { categories, commonRecordNames, settings, initialRows: rows, onBack: () => renderMain() });
+    });
+
     console.log('[Bootstrap] DinDin inicializado com sucesso');
   } catch (err) {
     console.error('Erro ao inicializar o DinDin:', err);

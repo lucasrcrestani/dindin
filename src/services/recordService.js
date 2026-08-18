@@ -3,7 +3,7 @@ import { createRecord } from '../models/Record.js';
 import { generateId } from '../utils/idUtils.js';
 import { incrementMonth } from '../utils/dateUtils.js';
 import { getRawCategoryById } from './categoryService.js';
-import { hydrateEntityTags, hydrateEntityTagsList, resolveInputTagIds } from './tagService.js';
+import { hydrateEntityTags, hydrateEntityTagsList, resolveInputTagIds, ensureTagIds } from './tagService.js';
 
 async function getAllRawRecords() {
   return promisify(getStore(STORES.RECORDS).getAll());
@@ -52,7 +52,7 @@ async function getRecordsByCategory(categoryId) {
 }
 
 async function saveRecord(data) {
-  const tagIds = await resolveInputTagIds(data, true);
+  const tagIds = await ensureTagIds(data.tags);
   if (!data.recordType) {
     throw new Error('Tipo do lançamento é obrigatório.');
   }

@@ -3,6 +3,8 @@ import { openAddRecordModal } from './addRecordModal.js';
 import { formatCurrency, formatMonthDisplay, capitalize } from '../utils/formatters.js';
 import { parseFormula } from '../utils/formulaUtils.js';
 import { BaseComponent } from './baseComponent.js';
+import { openCategoryModal } from './addCategoryModal.js';
+
 
 class DindinCategoryDetailModal extends BaseComponent {
   connectedCallback() {
@@ -67,6 +69,7 @@ class DindinCategoryDetailModal extends BaseComponent {
           <p class="modal-detail__month">${monthLabel}</p>
           <div id="detail-record-list"></div>
           <div class="modal__footer">
+            <button class="btn btn--secondary btn--sm record-list__edit" id="btn-edit-category" aria-label="Editar categoria">✏️ Editar categoria</button>
             <button class="btn btn--primary" id="btn-detail-add">+ Adicionar Lançamento</button>
           </div>
         </div>
@@ -175,6 +178,17 @@ class DindinCategoryDetailModal extends BaseComponent {
         onSaved: (record) => {
           this._categoryRecords = [...this._categoryRecords, record];
           renderList();
+        },
+      });
+    });
+
+    wrapper.querySelector('#btn-edit-category').addEventListener('click', () => {
+      console.log('[Category Detail] Editing category:', category.name);
+      openCategoryModal({
+        initial: category,
+        onSaved: async () => {
+          onChanged?.();
+          await this.render();
         },
       });
     });

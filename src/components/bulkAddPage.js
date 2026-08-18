@@ -34,7 +34,7 @@ function _positionDropdown(list, anchor) {
 
 class DindinBulkAddPage extends BaseComponent {
   render() {
-    const { categories = [], commonRecordNames = [], settings = {}, onBack } = this.data;
+    const { categories = [], commonRecordNames = [], settings = {}, onBack, initialRows = [] } = this.data;
     let _settings = { ...settings };
     let allRecordTags = [];
     getAllRecordTags().then((tags) => { allRecordTags = tags; });
@@ -82,7 +82,7 @@ class DindinBulkAddPage extends BaseComponent {
       });
     };
 
-    const createRow = () => {
+    const createRow = (initialData = {}) => {
       const row = document.createElement('tr');
       row.className = 'bulk-row';
       row.innerHTML = `
@@ -144,6 +144,10 @@ class DindinBulkAddPage extends BaseComponent {
           <button type="button" class="btn btn--danger btn--sm bulk-row__remove">Remover</button>
         </td>
       `;
+
+      if (initialData.recordType) row.querySelector('.bulk-type').value = initialData.recordType;
+      if (initialData.name) row.querySelector('.bulk-name').value = initialData.name;
+      if (initialData.value) row.querySelector('.bulk-value').value = initialData.value;
 
       const typeInput = row.querySelector('.bulk-type');
       const tagsContainer = row.querySelector('.bulk-tags-container');
@@ -273,7 +277,7 @@ class DindinBulkAddPage extends BaseComponent {
       const currentMonthSuggestion = row.querySelector('.bulk-current-month-suggestion');
       const currentMonthLabel = row.querySelector('.bulk-current-month-label');
       const currentMonthCheckbox = row.querySelector('.bulk-current-month');
-      dateInput.value = new Date().toISOString().slice(0, 10);
+      dateInput.value = initialData.date ?? new Date().toISOString().slice(0, 10);
 
       const updateDateHints = () => {
         const dateStr = dateInput.value;
@@ -314,8 +318,8 @@ class DindinBulkAddPage extends BaseComponent {
       return row;
     };
 
-    const appendRow = () => {
-      const row = createRow();
+    const appendRow = (initialData = {}) => {
+      const row = createRow(initialData);
       rowsContainer.appendChild(row);
       updateRowNumbers();
     };
@@ -413,7 +417,11 @@ class DindinBulkAddPage extends BaseComponent {
       await handleSave();
     });
 
-    appendRow();
+    if (initialRows.length > 0) {
+      initialRows.forEach((row) => appendRow(row));
+    } else {
+      appendRow();
+    }
     void categories;
     this.replaceContent(wrapper);
   }
@@ -423,9 +431,9 @@ if (typeof customElements !== 'undefined' && !customElements.get('dindin-bulk-ad
   customElements.define('dindin-bulk-add-page', DindinBulkAddPage);
 }
 
-function renderBulkAddPage(container, { categories, commonRecordNames, settings, onBack }) {
+function renderBulkAddPage(container, { categories, commonRecordNames, settings, onBack, initialRows = [] }) {
   const page = document.createElement('dindin-bulk-add-page');
-  page.data = { categories, commonRecordNames, settings, onBack };
+  page.data = { categories, commonRecordNames, settings, onBack, initialRows };
   container.innerHTML = '';
   container.appendChild(page);
 }
