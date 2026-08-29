@@ -7,6 +7,7 @@ import { loadPickerApi } from '../../src/services/pickerService.js';
 import { renderDriveSyncButton } from '../../src/components/driveSyncButton.js';
 import { getSettings } from '../../src/services/settingsService.js';
 import { migrateCategoryCreatedAt, getAllCategories } from '../../src/services/categoryService.js';
+import { migrateRemoveLockedTags } from '../../src/services/recordService.js';
 import { getAllCommonRecordNames } from '../../src/services/commonRecordNameService.js';
 import { renderBulkAddPage } from '../../src/components/bulkAddPage.js';
 
@@ -31,6 +32,7 @@ async function bootstrap() {
   try {
     await initDB();
     await migrateCategoryCreatedAt();
+    await migrateRemoveLockedTags();
     await renderMain();
     await renderDriveSyncButton();
 

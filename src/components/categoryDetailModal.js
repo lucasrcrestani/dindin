@@ -132,9 +132,8 @@ class DindinCategoryDetailModal extends BaseComponent {
             categories: allCategories,
             commonRecordNames,
             settings,
-            initial: { ...record, lockedTags: category.tags ?? [] },
+            initial: record,
             preselectedRecordType: category.recordType,
-            inheritedTags: category.tags ?? [],
             lockRecordType: true,
             onSaved: (updated) => {
               this._categoryRecords = this._categoryRecords.map((item) => item.id === updated.id ? updated : item);

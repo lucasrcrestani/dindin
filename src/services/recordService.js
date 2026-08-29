@@ -61,6 +61,7 @@ async function saveRecord(data) {
     ? { ...data, tagIds, updatedAt: new Date().toISOString() }
     : createRecord({ ...data, tagIds });
   delete record.tags;
+  delete record.lockedTags;
   await promisify(getStore(STORES.RECORDS, 'readwrite').put(record));
   console.log('[Record] Registro salvo:', record.name, `(id: ${record.id}, type: ${record.isRecurring ? 'recurring' : record.isInstallment ? 'installment' : 'simple'})`);
   return hydrateEntityTags(record);
@@ -199,6 +200,36 @@ async function getAllRecordTags() {
   return [...tagSet].sort();
 }
 
+/** One-time migration: removes the accidentally-persisted `lockedTags` field from all records. */
+async function migrateRemoveLockedTags() {
+  const records = await getAllRawRecords();
+  const affected = records.filter((r) => 'lockedTags' in r);
+  if (!affected.length) return;
+  const store = getStore(STORES.RECORDS, 'readwrite');
+  for (const record of affected) {
+    const cleaned = { ...record };
+    delete cleaned.lockedTags;
+    await promisify(store.put(cleaned));
+  }
+  console.log('[Record] Migrated', affected.length, 'record(s): removed lockedTags field');
+}
+
+/** Returns all records for the given month that are not matched by any category. */
+async function getUncategorizedRecordsByMonth(month, categories) {
+  const records = await getRecordsByMonth(month);
+  return records.filter((record) => {
+    const recordTagIds = record.tagIds ?? [];
+    return !categories.some((category) => {
+      const categoryTagIds = category.tagIds ?? [];
+      return (
+        categoryTagIds.length > 0 &&
+        record.recordType === category.recordType &&
+        categoryTagIds.every((tagId) => recordTagIds.includes(tagId))
+      );
+    });
+  });
+}
+
 export {
   getAllRecords,
   getAllRawRecords,
@@ -216,4 +247,6 @@ export {
   deleteRecordsByCategory,
   getAllMonthsWithRecords,
   getAllRecordTags,
+  getUncategorizedRecordsByMonth,
+  migrateRemoveLockedTags,
 };

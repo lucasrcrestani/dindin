@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from '../services/settingsService.js';
 import { getAllCategories } from '../services/categoryService.js';
-import { getRecordsByMonth, getRecurringRecordsByMonth, getInstallmentsByMonth, quitarInstallments, updateInstallmentFromCurrent, saveRecord } from '../services/recordService.js';
+import { getRecordsByMonth, getRecurringRecordsByMonth, getInstallmentsByMonth, getUncategorizedRecordsByMonth, quitarInstallments, updateInstallmentFromCurrent, saveRecord } from '../services/recordService.js';
 import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
 import { renderEmptyState } from '../components/emptyState.js';
 import { renderGeneralBalance } from '../components/generalBalance.js';
@@ -13,6 +13,7 @@ import { openCategoryDetailModal } from '../components/categoryDetailModal.js';
 import { openRecurringConfirmModal } from '../components/recurringConfirmModal.js';
 import { renderRecurringRecordsCard } from '../components/recurringRecordsCard.js';
 import { renderInstallmentRecordsCard } from '../components/installmentRecordsCard.js';
+import { renderUncategorizedRecordsCard } from '../components/uncategorizedRecordsCard.js';
 import { renderBulkAddPage } from '../components/bulkAddPage.js';
 import { incrementMonth, getPeriodMonths } from '../utils/dateUtils.js';
 import { computeHistoricalAverages, computePerMonthCategoryTotals } from '../utils/balanceUtils.js';
@@ -126,6 +127,25 @@ async function renderMain() {
     if (installmentCard) {
       const anchor = balanceRoot.querySelector('.balance-summary');
       anchor.insertAdjacentElement('afterend', installmentCard);
+    }
+
+    // Uncategorized records card — records not matched by any category
+    const uncategorizedRecords = await getUncategorizedRecordsByMonth(monthKey, _categories);
+    const uncategorizedCard = renderUncategorizedRecordsCard({
+      records: uncategorizedRecords,
+      onEdit: (record) => {
+        openAddRecordModal({
+          categories: _categories,
+          commonRecordNames,
+          settings: _settings,
+          initial: record,
+          onSaved: () => renderMain(),
+        });
+      },
+    });
+    if (uncategorizedCard) {
+      const anchor = balanceRoot.querySelector('.balance-summary');
+      anchor.insertAdjacentElement('afterend', uncategorizedCard);
     }
   }
 
