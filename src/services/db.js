@@ -1,5 +1,5 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 const STORES = {
   CATEGORIES: 'categories',
@@ -39,6 +39,59 @@ function ensureTag(rawTag, tagStore, tagIdsByName, now) {
   });
   tagIdsByName.set(normalizedName, id);
   return id;
+}
+
+/** v8: for recurring records with no tags, copy tagIds from the closest prior month's copy. */
+function migrateRecurringRecordTags(upgradeTx) {
+  const recordStore = upgradeTx.objectStore(STORES.RECORDS);
+  const allRecords = [];
+
+  recordStore.openCursor().onsuccess = function handleCursor(event) {
+    const cursor = event.target.result;
+    if (cursor) {
+      allRecords.push(cursor.value);
+      cursor.continue();
+      return;
+    }
+
+    const taggedByGroupId = new Map();
+    const taggedByNameType = new Map();
+    for (const r of allRecords) {
+      if (!r.isRecurring || !(r.tagIds ?? []).length) continue;
+      if (r.recurringGroupId) {
+        if (!taggedByGroupId.has(r.recurringGroupId)) taggedByGroupId.set(r.recurringGroupId, []);
+        taggedByGroupId.get(r.recurringGroupId).push({ month: r.month, tagIds: r.tagIds });
+      }
+      const key = `${r.recordType ?? ''}:${r.name ?? ''}`;
+      if (!taggedByNameType.has(key)) taggedByNameType.set(key, []);
+      taggedByNameType.get(key).push({ month: r.month, tagIds: r.tagIds });
+    }
+
+    const findDonorTags = (r) => {
+      let candidates = r.recurringGroupId
+        ? (taggedByGroupId.get(r.recurringGroupId) ?? []).filter((e) => e.month < r.month)
+        : [];
+      if (!candidates.length) {
+        const key = `${r.recordType ?? ''}:${r.name ?? ''}`;
+        candidates = (taggedByNameType.get(key) ?? []).filter((e) => e.month < r.month);
+      }
+      if (!candidates.length) return null;
+      candidates.sort((a, b) => b.month.localeCompare(a.month));
+      return candidates[0].tagIds;
+    };
+
+    let updated = 0;
+    const now = new Date().toISOString();
+    for (const r of allRecords) {
+      if (!r.isRecurring || (r.tagIds ?? []).length > 0) continue;
+      const donorTagIds = findDonorTags(r);
+      if (donorTagIds) {
+        recordStore.put({ ...r, tagIds: [...donorTagIds], updatedAt: now });
+        updated++;
+      }
+    }
+    if (updated) console.log(`[DB v8] Backfilled tags for ${updated} recurring record(s)`);
+  };
 }
 
 function migrateLegacyTagsAndRecords(upgradeTx) {
@@ -187,6 +240,10 @@ function initDB() {
 
       if (event.oldVersion < 6) {
         migrateLegacyTagsAndRecords(event.target.transaction);
+      }
+
+      if (event.oldVersion < 8) {
+        migrateRecurringRecordTags(event.target.transaction);
       }
     };
 

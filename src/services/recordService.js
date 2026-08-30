@@ -57,9 +57,14 @@ async function saveRecord(data) {
     throw new Error('Tipo do lançamento é obrigatório.');
   }
 
-  const record = data.id
-    ? { ...data, tagIds, updatedAt: new Date().toISOString() }
-    : createRecord({ ...data, tagIds });
+  let record;
+  if (data.id) {
+    // auto-assign recurringGroupId on first edit of a legacy recurring record
+    const recurringGroupId = data.isRecurring && !data.recurringGroupId ? generateId() : data.recurringGroupId;
+    record = { ...data, tagIds, recurringGroupId: recurringGroupId ?? null, updatedAt: new Date().toISOString() };
+  } else {
+    record = createRecord({ ...data, tagIds });
+  }
   delete record.tags;
   delete record.lockedTags;
   await promisify(getStore(STORES.RECORDS, 'readwrite').put(record));
@@ -223,6 +228,41 @@ async function migrateRemoveLockedTags() {
   console.log('[Record] Migrated', affected.length, 'record(s): removed lockedTags field');
 }
 
+/**
+ * Updates name, value, type, and tags for all future copies of a recurring record
+ * (month > currentMonth) that share the same recurringGroupId, or fall back to
+ * matching by name + recordType for legacy records without a group ID.
+ * @param {object} record - the saved recurring record with new data
+ * @param {string} currentMonth - YYYY-MM
+ */
+async function updateRecurringFromCurrent(record, currentMonth) {
+  if (!record.isRecurring) return;
+  const tagIds = await resolveInputTagIds(record, true);
+  const allMonths = await getAllMonthsWithRecords();
+  const futureMonths = allMonths.filter((m) => m > currentMonth);
+
+  for (const month of futureMonths) {
+    const monthRecords = await getRecurringRecordsByMonth(month);
+    const candidates = record.recurringGroupId
+      ? monthRecords.filter((r) => r.recurringGroupId === record.recurringGroupId ||
+          (!r.recurringGroupId && r.name === record.name && r.recordType === record.recordType))
+      : monthRecords.filter((r) => r.name === record.name && r.recordType === record.recordType);
+    for (const r of candidates) {
+      const updated = {
+        ...r,
+        name: record.name,
+        value: record.value,
+        recordType: record.recordType,
+        tagIds,
+        recurringGroupId: record.recurringGroupId,
+        updatedAt: new Date().toISOString(),
+      };
+      delete updated.tags;
+      await promisify(getStore(STORES.RECORDS, 'readwrite').put(updated));
+    }
+  }
+}
+
 /** Returns all records for the given month that are not matched by any category. */
 async function getUncategorizedRecordsByMonth(month, categories) {
   const records = await getRecordsByMonth(month);
@@ -259,4 +299,5 @@ export {
   getUncategorizedRecordsByMonth,
   migrateRemoveLockedTags,
   getRecordsByFitIds,
+  updateRecurringFromCurrent,
 };

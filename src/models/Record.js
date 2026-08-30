@@ -14,6 +14,7 @@ import { generateId } from '../utils/idUtils.js';
  * @property {string|null} installmentGroupId - shared ID for all records in the same installment purchase
  * @property {number|null} installmentNumber  - 1-based index of this installment
  * @property {number|null} installmentTotal   - total number of installments in the group
+ * @property {string|null} recurringGroupId   - shared ID linking all monthly copies of the same recurring record
  * @property {boolean} registeredInCurrentMonth - when true, record was intentionally assigned to the month of createdAt even though date is in a future month
  * @property {string|null} fitId  - FITID from OFX import; null for manually created records
  * @property {string} createdAt   - ISO string
@@ -24,7 +25,7 @@ import { generateId } from '../utils/idUtils.js';
  * @param {Omit<Record, 'id' | 'createdAt' | 'updatedAt'> & { month?: string }} data
  * @returns {Record}
  */
-function createRecord({ recordType = null, value, name, date, month: monthOverride, tagIds, isRecurring, isInstallment, installmentGroupId, installmentNumber, installmentTotal, registeredInCurrentMonth, fitId = null }) {
+function createRecord({ recordType = null, value, name, date, month: monthOverride, tagIds, isRecurring, isInstallment, installmentGroupId, installmentNumber, installmentTotal, recurringGroupId, registeredInCurrentMonth, fitId = null }) {
   const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
   const month = monthOverride ?? resolvedDate.slice(0, 7); // YYYY-MM
   const now = new Date().toISOString();
@@ -41,6 +42,7 @@ function createRecord({ recordType = null, value, name, date, month: monthOverri
     installmentGroupId: installmentGroupId ?? null,
     installmentNumber: installmentNumber ?? null,
     installmentTotal: installmentTotal ?? null,
+    recurringGroupId: recurringGroupId ?? null,
     registeredInCurrentMonth: registeredInCurrentMonth ?? false,
     fitId: fitId ?? null,
     createdAt: now,

@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from '../services/settingsService.js';
 import { getAllCategories } from '../services/categoryService.js';
-import { getRecordsByMonth, getRecurringRecordsByMonth, getInstallmentsByMonth, getUncategorizedRecordsByMonth, quitarInstallments, updateInstallmentFromCurrent, saveRecord } from '../services/recordService.js';
+import { getRecordsByMonth, getRecurringRecordsByMonth, getInstallmentsByMonth, getUncategorizedRecordsByMonth, quitarInstallments, updateInstallmentFromCurrent, updateRecurringFromCurrent, saveRecord } from '../services/recordService.js';
 import { getAllCommonRecordNames } from '../services/commonRecordNameService.js';
 import { renderEmptyState } from '../components/emptyState.js';
 import { renderGeneralBalance } from '../components/generalBalance.js';
@@ -94,7 +94,12 @@ async function renderMain() {
           commonRecordNames,
           settings: _settings,
           initial: record,
-          onSaved: () => renderMain(),
+          onSaved: async (updatedRecord) => {
+            if (updatedRecord.month === _settings.currentMonth) {
+              await updateRecurringFromCurrent(updatedRecord, _settings.currentMonth);
+            }
+            await renderMain();
+          },
         });
       },
     });
@@ -182,6 +187,7 @@ async function renderMain() {
               date: newDate,
               tagIds: r.tagIds,
               isRecurring: true,
+              recurringGroupId: r.recurringGroupId,
             }));
           }
           _settings = await saveSettings({ ..._settings, currentMonth: next });
