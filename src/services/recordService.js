@@ -67,6 +67,15 @@ async function saveRecord(data) {
   return hydrateEntityTags(record);
 }
 
+/** Returns records whose fitId matches any of the provided fitIds (ignores nulls). */
+async function getRecordsByFitIds(fitIds) {
+  const ids = fitIds.filter(Boolean);
+  if (ids.length === 0) return [];
+  const index = getStore(STORES.RECORDS).index('fitId');
+  const results = await Promise.all(ids.map((fitId) => promisify(index.getAll(IDBKeyRange.only(fitId)))));
+  return results.flat();
+}
+
 async function deleteRecord(id) {
   return promisify(getStore(STORES.RECORDS, 'readwrite').delete(id));
 }
@@ -249,4 +258,5 @@ export {
   getAllRecordTags,
   getUncategorizedRecordsByMonth,
   migrateRemoveLockedTags,
+  getRecordsByFitIds,
 };

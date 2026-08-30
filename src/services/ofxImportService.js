@@ -18,7 +18,7 @@ function parseDtPosted(raw) {
   return `${year}-${month}-${day}`;
 }
 
-function buildTransaction(trnType, dtPosted, trnAmt, name, memo) {
+function buildTransaction(trnType, dtPosted, trnAmt, name, memo, fitId) {
   const amount = parseFloat(trnAmt);
   const cleanName = (name ?? '').trim();
   const cleanMemo = (memo ?? '').trim();
@@ -31,6 +31,7 @@ function buildTransaction(trnType, dtPosted, trnAmt, name, memo) {
     date: parseDtPosted(dtPosted),
     value: String(Math.abs(amount)),
     name: fullName,
+    fitId: (fitId ?? '').trim() || null,
   };
 }
 
@@ -53,6 +54,7 @@ function parseSGML(text) {
       extractField(block, 'TRNAMT'),
       extractField(block, 'NAME'),
       extractField(block, 'MEMO'),
+      extractField(block, 'FITID'),
     ));
   }
   return transactions;
@@ -72,7 +74,7 @@ function parseOFX(text) {
 }
 
 function mapTransactionsToBulkRows(transactions) {
-  return transactions.map((t) => ({ recordType: t.recordType, name: t.name, date: t.date, value: t.value, tags: [] }));
+  return transactions.map((t) => ({ recordType: t.recordType, name: t.name, date: t.date, value: t.value, tags: [], fitId: t.fitId }));
 }
 
 export { parseOFX, mapTransactionsToBulkRows };

@@ -79,6 +79,7 @@ describe('parseOFX', () => {
       expect(debit.value).toBe('150');
       expect(debit.name).toBe('Supermercado Extra – Compras');
       expect(debit.recordType).toBe('expense');
+      expect(debit.fitId).toBe('001');
     });
     it('parses CREDIT transaction correctly', () => {
       const [, credit] = parseOFX(OFX_SGML_V1);
@@ -86,6 +87,7 @@ describe('parseOFX', () => {
       expect(credit.value).toBe('3000');
       expect(credit.name).toBe('Salario');
       expect(credit.recordType).toBe('income');
+      expect(credit.fitId).toBe('002');
     });
   });
 
@@ -100,10 +102,12 @@ describe('parseOFX', () => {
       expect(debit.value).toBe('80.5');
       expect(debit.name).toBe('Farmacia');
       expect(debit.recordType).toBe('expense');
+      expect(debit.fitId).toBe('003');
     });
     it('does not append memo when memo equals name', () => {
       const [, dep] = parseOFX(OFX_XML_V2);
       expect(dep.name).toBe('Deposito');
+      expect(dep.fitId).toBe('004');
     });
     it('parses DEP as income', () => {
       const [, dep] = parseOFX(OFX_XML_V2);
@@ -117,6 +121,6 @@ describe('mapTransactionsToBulkRows', () => {
     const transactions = parseOFX(OFX_SGML_V1);
     const rows = mapTransactionsToBulkRows(transactions);
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ recordType: 'expense', name: 'Supermercado Extra – Compras', date: '2024-01-05', value: '150', tags: [] });
+    expect(rows[0]).toMatchObject({ recordType: 'expense', name: 'Supermercado Extra – Compras', date: '2024-01-05', value: '150', tags: [], fitId: '001' });
   });
 });

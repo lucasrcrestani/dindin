@@ -1,5 +1,5 @@
 const DB_NAME = 'dindin';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 const STORES = {
   CATEGORIES: 'categories',
@@ -162,6 +162,9 @@ function initDB() {
         }
         if (!recStore.indexNames.contains('installmentGroupId')) {
           recStore.createIndex('installmentGroupId', 'installmentGroupId', { unique: false });
+        }
+        if (!recStore.indexNames.contains('fitId')) {
+          recStore.createIndex('fitId', 'fitId', { unique: false });
         }
       }
 

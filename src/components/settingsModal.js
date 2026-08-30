@@ -10,6 +10,8 @@ import { openDriveCredentialsModal } from './driveCredentialsModal.js';
 import { renderDriveSyncButton } from './driveSyncButton.js';
 import { BaseComponent } from './baseComponent.js';
 import { parseOFX, mapTransactionsToBulkRows } from '../services/ofxImportService.js';
+import { getRecordsByFitIds } from '../services/recordService.js';
+import { openOfxDuplicatesModal } from './ofxDuplicatesModal.js';
 
 class DindinSettingsModal extends BaseComponent {
   connectedCallback() {
@@ -332,8 +334,27 @@ class DindinSettingsModal extends BaseComponent {
         const transactions = parseOFX(text);
         const rows = mapTransactionsToBulkRows(transactions);
         console.log('[OFX Import] Transações importadas:', rows.length);
+
+        const fitIds = rows.map((r) => r.fitId).filter(Boolean);
+        const existingRecords = await getRecordsByFitIds(fitIds);
+        const existingFitIds = new Set(existingRecords.map((r) => r.fitId));
+        const newRows = rows.filter((r) => !r.fitId || !existingFitIds.has(r.fitId));
+        const duplicateRows = rows.filter((r) => r.fitId && existingFitIds.has(r.fitId));
+
         this.close();
-        window.dispatchEvent(new CustomEvent('dindin:ofx-bulk-add', { detail: { rows } }));
+
+        if (duplicateRows.length > 0) {
+          console.log('[OFX Import] Duplicatas detectadas:', duplicateRows.length);
+          openOfxDuplicatesModal({
+            newRows,
+            duplicateRows,
+            onConfirm: (finalRows) => {
+              window.dispatchEvent(new CustomEvent('dindin:ofx-bulk-add', { detail: { rows: finalRows } }));
+            },
+          });
+        } else {
+          window.dispatchEvent(new CustomEvent('dindin:ofx-bulk-add', { detail: { rows: newRows } }));
+        }
       } catch (error) {
         errorEl.textContent = `Erro ao ler OFX: ${error.message}`;
         errorEl.style.display = 'block';

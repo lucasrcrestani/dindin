@@ -148,6 +148,7 @@ class DindinBulkAddPage extends BaseComponent {
       if (initialData.recordType) row.querySelector('.bulk-type').value = initialData.recordType;
       if (initialData.name) row.querySelector('.bulk-name').value = initialData.name;
       if (initialData.value) row.querySelector('.bulk-value').value = initialData.value;
+      if (initialData.fitId) row.dataset.fitId = initialData.fitId;
 
       const typeInput = row.querySelector('.bulk-type');
       const tagsContainer = row.querySelector('.bulk-tags-container');
@@ -341,6 +342,7 @@ class DindinBulkAddPage extends BaseComponent {
         installmentCount: parseInt(row.querySelector('.bulk-count').value, 10),
         useCurrentMonth: row.querySelector('.bulk-current-month').checked,
         tags: [...row.querySelectorAll('.bulk-tags-container [data-tag]')].map((element) => element.dataset.tag),
+        fitId: row.dataset.fitId || null,
       };
     };
 
@@ -387,6 +389,7 @@ class DindinBulkAddPage extends BaseComponent {
               name: data.name,
               date: data.date,
               tags: data.tags,
+              fitId: data.fitId,
               registeredInCurrentMonth: data.useCurrentMonth,
               currentMonthOverride: _settings.currentMonth,
             },
@@ -402,6 +405,7 @@ class DindinBulkAddPage extends BaseComponent {
             isRecurring: data.isRecurring,
             registeredInCurrentMonth: data.useCurrentMonth,
             tags: data.tags,
+            fitId: data.fitId,
           });
         }
 
